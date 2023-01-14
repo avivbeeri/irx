@@ -6,7 +6,7 @@
 /*
    irx cpu core
    (instructions, registers, execution)
-*/
+   */
 
 #define STACK_SIZE 256
 #define MEMORY_SIZE (64 * 1024)
@@ -50,11 +50,21 @@ typedef enum {
   OR,
   XOR,
   NOT,
-
   SWAP,
   LOAD_I,
   STORE_I,
-  COPY,
+
+  // Copy takes up multiple opcodes
+  COPY_A = 0x10,
+  COPY_B = 0x11,
+  COPY_C = 0x12,
+  COPY_D = 0x13,
+  COPY_G = 0x14,
+  COPY_H = 0x15,
+
+  // Control flow
+  JMP,
+
 
 } OP;
 
@@ -68,9 +78,58 @@ uint8_t CPU_fetch(CPU* cpu) {
 
 void CPU_execute(CPU* cpu, uint8_t opcode, uint8_t field) {
   switch (opcode) {
-    case COPY:
+    case COPY_A:
+    case COPY_B:
+    case COPY_C:
+    case COPY_D:
+    case COPY_G:
+    case COPY_H:
       // register to register
       {
+        // A->B
+        // A->C
+        // A->D
+        // A->G
+        // A->H
+        // B->A
+        // B->C
+        // B->D
+        // B->G
+        // B->H
+        uint8_t dest = opcode & 0x07;
+        uint8_t src = field;
+        cpu->registers[dest] = cpu->registers[src];
+      }
+      break;
+    case JMP:
+      {
+        // Immediate
+        // relative
+        // direct
+        // conditionals?
+        uint8_t value = CPU_fetch(cpu);
+        switch(field) {
+          case 0:
+            {
+              cpu->ip = value;
+            }
+            break;
+          case 1: // check Z flag
+            {
+              if ((cpu->f & 0x01) != 0) {
+                cpu->ip = value;
+                printf("jumping");
+              }
+            }
+            break;
+          case 2: // check Z flag
+            {
+              if ((cpu->f & 0x01) == 0) {
+                cpu->ip = value;
+              }
+            }
+            break;
+        }
       }
       break;
     case STORE_I:
@@ -108,18 +167,34 @@ void CPU_execute(CPU* cpu, uint8_t opcode, uint8_t field) {
       break;
     case ADD:
       cpu->a += cpu->registers[field];
+      if (cpu->a == 0) {
+        cpu->f |= 0x01;
+      }
       break;
     case SUB:
       cpu->a -= cpu->registers[field];
+      if (cpu->a == 0) {
+        cpu->f |= 0x01;
+        printf("Z\n");
+      }
       break;
     case MUL:
       cpu->a *= cpu->registers[field];
+      if (cpu->a == 0) {
+        cpu->f |= 0x01;
+      }
       break;
     case DIV:
       cpu->a /= cpu->registers[field];
+      if (cpu->a == 0) {
+        cpu->f |= 0x01;
+      }
       break;
     case MOD:
       cpu->a %= cpu->registers[field];
+      if (cpu->a == 0) {
+        cpu->f |= 0x01;
+      }
       break;
     case AND:
       cpu->a &= cpu->registers[field];
@@ -196,11 +271,10 @@ int main(int argc, char *argv[]) {
   CPU_init(&cpu);
 
   uint8_t program[] = {
-    OP(SET, 0), 2,
-    OP(SET, 1), 6,
-    OP(SWAP, 0),
-    OP(STORE_I, 0), 13, 00,
-    OP(LOAD_I, 5), 13, 00,
+    OP(SET, 0), 4,
+    OP(SET, 1), 1,
+    OP(SUB, 1),
+    OP(JMP, 2), 4, // Jump if zero
     OPZ(HALT)
   };
   memcpy(cpu.memory, program, sizeof(program));
