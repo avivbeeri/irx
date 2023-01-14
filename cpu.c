@@ -11,7 +11,7 @@
 #define STACK_SIZE 256
 #define MEMORY_SIZE (64 * 1024)
 
-typedef struct CPU_t {
+fielddef struct CPU_t {
   bool running;
 
   // General purpose registers
@@ -37,7 +37,7 @@ typedef struct CPU_t {
 
 } CPU;
 
-typedef enum {
+fielddef enum {
   NOOP = 0,
   HALT,
   SET,
@@ -52,8 +52,8 @@ typedef enum {
   NOT,
 
   SWAP,
-  LOAD,
-  STORE,
+  LOAD_I,
+  STORE_I,
   COPY,
 
 } OP;
@@ -66,27 +66,36 @@ uint8_t CPU_fetch(CPU* cpu) {
   return data;
 }
 
-void CPU_execute(CPU* cpu, uint8_t opcode, uint8_t type) {
+void CPU_execute(CPU* cpu, uint8_t opcode, uint8_t field) {
   switch (opcode) {
     case COPY:
       // register to register
       {
       }
       break;
-    case STORE:
-      // register to memory
+    case STORE_I:
+      // register to memory - operand
       {
+        uint8_t lo = CPU_fetch(cpu);
+        uint8_t hi = CPU_fetch(cpu);
+        uint16_t addr = (hi << 8) | lo;
+        cpu->memory[addr] = cpu->registers[field];
       }
       break;
-    case LOAD:
-      // memory to register
+    case LOAD_I:
+      // memory (operand) to register
+      // addressing
       {
+        uint8_t lo = CPU_fetch(cpu);
+        uint8_t hi = CPU_fetch(cpu);
+        uint16_t addr = (hi << 8) | lo;
+        cpu->registers[field] = cpu->memory[addr];
       }
       break;
     case SWAP:
       {
-        uint8_t swap = cpu->registers[type];
-        uint8_t start = 2 * type;
+        uint8_t swap = cpu->registers[field];
+        uint8_t start = 2 * field;
         cpu->registers[start] = cpu->registers[start + 1];
         cpu->registers[start + 1] = swap;
       }
@@ -94,32 +103,32 @@ void CPU_execute(CPU* cpu, uint8_t opcode, uint8_t type) {
     case SET:
       {
         uint8_t value = CPU_fetch(cpu);
-        cpu->registers[type] = value;
+        cpu->registers[field] = value;
       }
       break;
     case ADD:
-      cpu->a += cpu->registers[type];
+      cpu->a += cpu->registers[field];
       break;
     case SUB:
-      cpu->a -= cpu->registers[type];
+      cpu->a -= cpu->registers[field];
       break;
     case MUL:
-      cpu->a *= cpu->registers[type];
+      cpu->a *= cpu->registers[field];
       break;
     case DIV:
-      cpu->a /= cpu->registers[type];
+      cpu->a /= cpu->registers[field];
       break;
     case MOD:
-      cpu->a %= cpu->registers[type];
+      cpu->a %= cpu->registers[field];
       break;
     case AND:
-      cpu->a &= cpu->registers[type];
+      cpu->a &= cpu->registers[field];
       break;
     case OR:
-      cpu->a |= cpu->registers[type];
+      cpu->a |= cpu->registers[field];
       break;
     case XOR:
-      cpu->a ^= cpu->registers[type];
+      cpu->a ^= cpu->registers[field];
       break;
     case NOT:
       cpu->a = !cpu->a;
@@ -155,9 +164,9 @@ void CPU_run(CPU* cpu) {
     uint8_t instruction = CPU_fetch(cpu);
     // decode
     uint8_t opcode = instruction & 0x1F;
-    uint8_t type = instruction >> 5;
+    uint8_t field = instruction >> 5;
 
-    CPU_execute(cpu, opcode, type);
+    CPU_execute(cpu, opcode, field);
     // execute
   }
 }
@@ -190,6 +199,8 @@ int main(int argc, char *argv[]) {
     OP(SET, 0), 2,
     OP(SET, 1), 6,
     OP(SWAP, 0),
+    OP(STORE_I, 0), 13, 00,
+    OP(LOAD_I, 5), 13, 00,
     OPZ(HALT)
   };
   memcpy(cpu.memory, program, sizeof(program));
