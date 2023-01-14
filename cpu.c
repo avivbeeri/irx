@@ -4,62 +4,12 @@
 #include <string.h>
 
 /*
-   irx cpu
+   irx cpu core
    (instructions, registers, execution)
-
-   8-bit machine
-   16-bit address bus - 64kb memory maximum
-   seperate device bus
-
-   bytecode register machine
-   call+data stack at the end of
-
-   Opcodes are single byte (usually)
-
-   registers - pairable 16-bit, or individual 8 bit:
-   AB - Accumulator
-   CD - data storage
-   GH - data storage
-
-   EF - Extra Flags (Carry, Zero, Error...)
-   IP - Instruction pointer (program counter)
-   SP - Stack pointer
-
-   NOP
-   HALT
-
-   SET (set location to literal value)
-   COPY (move value from register/location to register/location)
-   SWAP (for a 16bit register, swap hi/low bytes)
-
-   CALL (push and jump)
-   RET (pop and jump back)
-
-   JMP - just jump
-   JPZ - if 0
-   JLT - if less than
-
-   ADD
-   SUB
-   MUL
-   DIV
-   MOD
-
-   NOT
-   AND
-   OR
-   XOR
-
-   memory
-   logic
-   arithmetic
-   program flow
-   other
-   */
+*/
 
 #define STACK_SIZE 256
 #define MEMORY_SIZE (64 * 1024)
-
 
 typedef struct CPU_t {
   bool running;
@@ -80,7 +30,6 @@ typedef struct CPU_t {
       uint8_t f;
     };
   };
-
 
   uint16_t ip;
   uint8_t sp; // stack pointer
@@ -121,13 +70,17 @@ void CPU_execute(CPU* cpu, uint8_t opcode, uint8_t type) {
   switch (opcode) {
     case COPY:
       // register to register
+      {
+      }
+      break;
     case STORE:
-      // memory to register
-    case LOAD:
       // register to memory
       {
-        cpu->registers[start] = cpu->registers[start + 1];
-        cpu->registers[start + 1] = swap;
+      }
+      break;
+    case LOAD:
+      // memory to register
+      {
       }
       break;
     case SWAP:
@@ -179,9 +132,7 @@ halt:
 }
 
 void CPU_init(CPU* cpu) {
-
   cpu->running = true;
-
   cpu->a = 0;
   cpu->b = 0;
   cpu->c = 0;
@@ -194,7 +145,7 @@ void CPU_init(CPU* cpu) {
 
   cpu->ip = 0;
   cpu->sp = 0;
-  memset(cpu->memory, HALT, MEMORY_SIZE);
+  memset(cpu->memory, 0, MEMORY_SIZE);
 }
 
 void CPU_run(CPU* cpu) {
@@ -229,20 +180,19 @@ void CPU_dump(CPU* cpu) {
   printf("H: 0x%02x\n", cpu->h);
   printf("\n");
   printf("--------------------------\n");
-
 }
 
 int main(int argc, char *argv[]) {
   CPU cpu;
   CPU_init(&cpu);
 
-  uint8_t program[32] = {
+  uint8_t program[] = {
     OP(SET, 0), 2,
     OP(SET, 1), 6,
     OP(SWAP, 0),
     OPZ(HALT)
   };
-  memcpy(cpu.memory, program, 32);
+  memcpy(cpu.memory, program, sizeof(program));
 
   CPU_run(&cpu);
   CPU_dump(&cpu);
