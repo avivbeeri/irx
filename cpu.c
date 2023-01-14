@@ -11,7 +11,7 @@
 #define STACK_SIZE 256
 #define MEMORY_SIZE (64 * 1024)
 
-fielddef struct CPU_t {
+typedef struct CPU_t {
   bool running;
 
   // General purpose registers
@@ -37,7 +37,7 @@ fielddef struct CPU_t {
 
 } CPU;
 
-fielddef enum {
+typedef enum {
   NOOP = 0,
   HALT,
   SET,
