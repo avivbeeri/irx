@@ -33,6 +33,7 @@ typedef struct CPU_t {
 
   uint16_t ip;
   uint8_t sp; // stack pointer
+  uint8_t wp; // write-protect register (can be used for locking memory)
   uint8_t memory[MEMORY_SIZE];
 
 } CPU;
@@ -64,9 +65,25 @@ typedef enum {
 
   // Control flow
   JMP,
+  CLF, // clear flag
+  INC,
+  DEC,
+  RTL, // rotate left
+  RTR, // rotate right
 
 
 } OP;
+
+typedef enum {
+  FLAG_Z = 1, // Zero
+  FLAG_C = 2, // Carry
+  FLAG_M = 4, // Minus
+  FLAG_O = 8, // Overflow
+  FLAG_WP = 16, // Write-protect-enable
+  // unused, 32, 64
+  FLAG_S = 128, // Sign
+
+} FLAG;
 
 #define OPZ(opcode) opcode
 #define OP(opcode, flag) (flag << 5) | opcode
@@ -116,7 +133,7 @@ void CPU_execute(CPU* cpu, uint8_t opcode, uint8_t field) {
             break;
           case 1: // check Z flag
             {
-              if ((cpu->f & 0x01) != 0) {
+              if ((cpu->f & FLAG_Z) != 0) {
                 cpu->ip = value;
                 printf("jumping");
               }
@@ -124,7 +141,7 @@ void CPU_execute(CPU* cpu, uint8_t opcode, uint8_t field) {
             break;
           case 2: // check Z flag
             {
-              if ((cpu->f & 0x01) == 0) {
+              if ((cpu->f & FLAG_Z) == 0) {
                 cpu->ip = value;
               }
             }
@@ -165,35 +182,46 @@ void CPU_execute(CPU* cpu, uint8_t opcode, uint8_t field) {
         cpu->registers[field] = value;
       }
       break;
+    case DEC:
+      cpu->registers[field] -= 1;
+      if (cpu->a == 0) {
+        cpu->f |= FLAG_Z;
+      }
+      break;
+    case INC:
+      cpu->registers[field] += 1;
+      if (cpu->a == 0) {
+        cpu->f |= FLAG_Z;
+      }
+      break;
     case ADD:
       cpu->a += cpu->registers[field];
       if (cpu->a == 0) {
-        cpu->f |= 0x01;
+        cpu->f |= FLAG_Z;
       }
       break;
     case SUB:
       cpu->a -= cpu->registers[field];
       if (cpu->a == 0) {
-        cpu->f |= 0x01;
-        printf("Z\n");
+        cpu->f |= FLAG_Z;
       }
       break;
     case MUL:
       cpu->a *= cpu->registers[field];
       if (cpu->a == 0) {
-        cpu->f |= 0x01;
+        cpu->f |= FLAG_Z;
       }
       break;
     case DIV:
       cpu->a /= cpu->registers[field];
       if (cpu->a == 0) {
-        cpu->f |= 0x01;
+        cpu->f |= FLAG_Z;
       }
       break;
     case MOD:
       cpu->a %= cpu->registers[field];
       if (cpu->a == 0) {
-        cpu->f |= 0x01;
+        cpu->f |= FLAG_Z;
       }
       break;
     case AND:
@@ -272,9 +300,8 @@ int main(int argc, char *argv[]) {
 
   uint8_t program[] = {
     OP(SET, 0), 4,
-    OP(SET, 1), 1,
-    OP(SUB, 1),
-    OP(JMP, 2), 4, // Jump if zero
+    OP(DEC, 0),
+    OP(JMP, 2), 2, // Jump if zero
     OPZ(HALT)
   };
   memcpy(cpu.memory, program, sizeof(program));
