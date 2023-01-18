@@ -74,15 +74,16 @@ typedef enum {
 
 } OP;
 
+// Based on 6502 format
 typedef enum {
-  FLAG_Z = 1, // Zero
-  FLAG_C = 2, // Carry
-  FLAG_M = 4, // Minus
-  FLAG_O = 8, // Overflow
-  FLAG_WP = 16, // Write-protect-enable
-  // unused, 32, 64
-  FLAG_S = 128, // Sign
-
+  FLAG_C = 1, // Carry
+  FLAG_Z = 2, // Zero
+  FLAG_I = 4, // Interrupt
+  FLAG_WP = 8, // Write-protect-enable
+  FLAG_BRK = 16, // Break (software interrupt)
+  FLAG_U = 32, // unused
+  FLAG_N = 64, // Negative
+  FLAG_O = 128, // Overflow
 } FLAG;
 
 #define OPZ(opcode) opcode
