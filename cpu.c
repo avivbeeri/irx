@@ -65,12 +65,13 @@ typedef enum {
 
   // Control flow
   JMP,
+  BRCH,
   CLF, // clear flag
+  SEF, // set flag
   INC,
   DEC,
   RTL, // rotate left
   RTR, // rotate right
-
 
 } OP;
 
@@ -119,31 +120,106 @@ void CPU_execute(CPU* cpu, uint8_t opcode, uint8_t field) {
         cpu->registers[dest] = cpu->registers[src];
       }
       break;
+
+    case RTL:
+      {
+        uint8_t i = cpu->registers[field] << 1;
+        uint8_t j = cpu->registers[field] >> 7;
+        cpu->registers[field] = i | j;
+      }
+      break;
+    case RTR:
+      {
+        uint8_t i = cpu->registers[field] >> 1;
+        uint8_t j = cpu->registers[field] << 7;
+        cpu->registers[field] = i | j;
+      }
+      break;
+    case CLF:
+      {
+        cpu->f ^= (1 << field);
+      }
+      break;
+    case SEF:
+      {
+        cpu->f |= (1 << field);
+      }
+      break;
     case JMP:
       {
         // Immediate
         // relative
         // direct
         // conditionals?
-        uint8_t value = CPU_fetch(cpu);
+        uint8_t lo = CPU_fetch(cpu);
+        uint8_t hi = CPU_fetch(cpu);
+        uint16_t addr = (hi << 8) | lo;
+        cpu->ip = addr;
+      }
+      break;
+    case BRCH:
+      {
+        // Immediate
+        // relative
+        // direct
+        // conditionals?
+        uint8_t lo = CPU_fetch(cpu);
+        uint8_t hi = CPU_fetch(cpu);
+        uint16_t addr = (hi << 8) | lo;
         switch(field) {
-          case 0:
+          case 0: // check Z flag
             {
-              cpu->ip = value;
+              if ((cpu->f & FLAG_Z) != 0) {
+                cpu->ip = addr;
+              }
             }
             break;
           case 1: // check Z flag
             {
-              if ((cpu->f & FLAG_Z) != 0) {
-                cpu->ip = value;
-                printf("jumping");
+              if ((cpu->f & FLAG_Z) == 0) {
+                cpu->ip = addr;
               }
             }
             break;
-          case 2: // check Z flag
+          case 2: // check N flag
             {
-              if ((cpu->f & FLAG_Z) == 0) {
-                cpu->ip = value;
+              if ((cpu->f & FLAG_N) != 0) {
+                cpu->ip = addr;
+              }
+            }
+            break;
+          case 3: // check N flag
+            {
+              if ((cpu->f & FLAG_N) == 0) {
+                cpu->ip = addr;
+              }
+            }
+            break;
+          case 4: // check C flag
+            {
+              if ((cpu->f & FLAG_C) != 0) {
+                cpu->ip = addr;
+              }
+            }
+            break;
+          case 5: // check C flag
+            {
+              if ((cpu->f & FLAG_C) == 0) {
+                cpu->ip = addr;
+              }
+            }
+            break;
+          case 6: // check O flag
+            {
+              if ((cpu->f & FLAG_O) != 0) {
+                cpu->ip = addr;
+              }
+            }
+            break;
+          case 7: // check O flag
+            {
+              if ((cpu->f & FLAG_O) == 0) {
+                cpu->ip = addr;
               }
             }
             break;
@@ -254,7 +330,7 @@ void CPU_init(CPU* cpu) {
   cpu->h = 0;
 
   cpu->e = 0;
-  cpu->f = 0;
+  cpu->f = 0xFF;
 
   cpu->ip = 0;
   cpu->sp = 0;
@@ -299,10 +375,18 @@ int main(int argc, char *argv[]) {
   CPU cpu;
   CPU_init(&cpu);
 
+  /*
   uint8_t program[] = {
     OP(SET, 0), 4,
     OP(DEC, 0),
-    OP(JMP, 2), 2, // Jump if zero
+    OP(BRCH, 1), 2, 0, // Jump if zero
+    OP(CLF, 0),
+    OPZ(HALT)
+  };
+  */
+  uint8_t program[] = {
+    OP(SET, 0), 0xAB,
+    OP(RTL, 0),
     OPZ(HALT)
   };
   memcpy(cpu.memory, program, sizeof(program));
