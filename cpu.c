@@ -54,18 +54,18 @@ typedef enum {
   SWAP,
   LOAD_I,
   STORE_I,
+  LOAD_IR,
+  STORE_IR,
 
   // Copy takes up multiple opcodes
-  COPY_A = 0x10,
-  COPY_B = 0x11,
-  COPY_C = 0x12,
-  COPY_D = 0x13,
-  COPY_G = 0x14,
-  COPY_H = 0x15,
+  COPY_IN = 0x10, // to A
+  COPY_OUT = 0x11, // from A
 
   // Control flow
   JMP,
   BRCH,
+  CMP, // compare?
+
   CLF, // clear flag
   SEF, // set flag
   INC,
@@ -97,27 +97,27 @@ uint8_t CPU_fetch(CPU* cpu) {
 
 void CPU_execute(CPU* cpu, uint8_t opcode, uint8_t field) {
   switch (opcode) {
-    case COPY_A:
-    case COPY_B:
-    case COPY_C:
-    case COPY_D:
-    case COPY_G:
-    case COPY_H:
+    case COPY_IN:
+        // A->A
+        // B->A
+        // C->A
+        // D->A
+        // G->A
+        // H->A
+      {
+        cpu->registers[0] = cpu->registers[field];
+      }
+      break;
+    case COPY_OUT:
       // register to register
       {
+        // A->A
         // A->B
         // A->C
         // A->D
         // A->G
         // A->H
-        // B->A
-        // B->C
-        // B->D
-        // B->G
-        // B->H
-        uint8_t dest = opcode & 0x07;
-        uint8_t src = field;
-        cpu->registers[dest] = cpu->registers[src];
+        cpu->registers[field] = cpu->registers[0];
       }
       break;
 
@@ -151,10 +151,28 @@ void CPU_execute(CPU* cpu, uint8_t opcode, uint8_t field) {
         // relative
         // direct
         // conditionals?
-        uint8_t lo = CPU_fetch(cpu);
-        uint8_t hi = CPU_fetch(cpu);
-        uint16_t addr = (hi << 8) | lo;
-        cpu->ip = addr;
+        switch(field) {
+          case 0:
+            {
+              uint8_t lo = CPU_fetch(cpu);
+              uint8_t hi = CPU_fetch(cpu);
+              uint16_t addr = (hi << 8) | lo;
+              cpu->ip = addr;
+            }
+            break;
+            // pair 16-bit mode
+          case 1:
+          case 2:
+          case 3:
+            {
+              uint8_t pair = (field - 1)*2;
+              uint8_t lo = cpu->registers[pair];
+              uint8_t hi = cpu->registers[pair+1];
+              uint16_t addr = (hi << 8) | lo;
+              cpu->ip = addr;
+            }
+            break;
+        }
       }
       break;
     case BRCH:
@@ -272,9 +290,15 @@ void CPU_execute(CPU* cpu, uint8_t opcode, uint8_t field) {
       }
       break;
     case ADD:
-      cpu->a += cpu->registers[field];
-      if (cpu->a == 0) {
-        cpu->f |= FLAG_Z;
+      {
+        uint16_t result = cpu->a + cpu->registers[field];
+        cpu->a = result;
+        if (cpu->a == 0) {
+          cpu->f |= FLAG_Z;
+        }
+        if (((uint8_t)(result >> 8) & 0x01) == 1) {
+          cpu->f |= FLAG_C;
+        }
       }
       break;
     case SUB:
@@ -330,7 +354,7 @@ void CPU_init(CPU* cpu) {
   cpu->h = 0;
 
   cpu->e = 0;
-  cpu->f = 0xFF;
+  cpu->f = 0x00;
 
   cpu->ip = 0;
   cpu->sp = 0;
@@ -356,17 +380,21 @@ void CPU_dump(CPU* cpu) {
   printf("------ irx cpu dump ------\n\n");
   printf("# state\n");
   printf("Running: %s\n", cpu->running ? "true" : "false");
-  printf("IP: 0x%04x\n", cpu->ip);
-  printf("SP: 0x%04x\n", cpu->sp);
-  printf("E: 0x%02x\t F: 0x%02x\n", cpu->e, cpu->f);
+  printf("IP: 0x%04X\n", cpu->ip);
+  printf("SP: 0x%04X\n", cpu->sp);
+  printf("E: 0x%02X\t F: 0x%02X\n", cpu->e, cpu->f);
+
+  printf("C:%i  Z:%i  I:%i  WP: %i\n", (cpu->f & FLAG_C) != 0, (cpu->f & FLAG_Z) != 0, (cpu->f & FLAG_I) != 0, (cpu->f & FLAG_WP) != 0);
+  printf("O:%i  U:%i  N:%i  BRK:%i\n", (cpu->f & FLAG_O) != 0, (cpu->f & FLAG_U) != 0, (cpu->f & FLAG_N) != 0, (cpu->f & FLAG_BRK) != 0);
+
   printf("\n");
   printf("# registers\n\n");
-  printf("A: 0x%02x\n", cpu->a);
-  printf("B: 0x%02x\n", cpu->b);
-  printf("C: 0x%02x\n", cpu->c);
-  printf("D: 0x%02x\n", cpu->d);
-  printf("G: 0x%02x\n", cpu->g);
-  printf("H: 0x%02x\n", cpu->h);
+  printf("A: 0x%02X\n", cpu->a);
+  printf("B: 0x%02X\n", cpu->b);
+  printf("C: 0x%02X\n", cpu->c);
+  printf("D: 0x%02X\n", cpu->d);
+  printf("G: 0x%02X\n", cpu->g);
+  printf("H: 0x%02X\n", cpu->h);
   printf("\n");
   printf("--------------------------\n");
 }
@@ -385,8 +413,10 @@ int main(int argc, char *argv[]) {
   };
   */
   uint8_t program[] = {
-    OP(SET, 0), 0xAB,
-    OP(RTL, 0),
+    OP(SET, 0), 0x05,
+    OP(SET, 1), 0x00,
+    OP(JMP, 1),
+    OP(SEF, 3),
     OPZ(HALT)
   };
   memcpy(cpu.memory, program, sizeof(program));
