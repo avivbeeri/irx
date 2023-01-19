@@ -45,6 +45,7 @@ typedef enum {
   ADD,
   SUB,
   MUL,
+  IMUL,
   DIV,
   MOD,
   AND,
@@ -376,10 +377,51 @@ void CPU_execute(CPU* cpu, uint8_t opcode, uint8_t field) {
         }
       }
       break;
+    case IMUL:
+      {
+        int8_t a = cpu->a;
+        int8_t b = cpu->registers[field];
+        int16_t result = a * b;
+
+        cpu->a = result & 0xFF;
+        cpu->b = (result & 0xFF00) >> 8;
+
+        if (isBitSet((~(a ^ b) & (a ^ result) & 0x80), 7)) {
+          cpu->f |= FLAG_O;
+        } else {
+          cpu->f &= ~FLAG_O;
+        }
+        if (result == 0) {
+          cpu->f |= FLAG_Z;
+        } else {
+          cpu->f &= ~FLAG_Z;
+        }
+        if (result < 0) {
+          cpu->f |= FLAG_N;
+        } else {
+          cpu->f &= ~FLAG_N;
+        }
+      }
+      break;
     case MUL:
-      cpu->a *= cpu->registers[field];
-      if (cpu->a == 0) {
-        cpu->f |= FLAG_Z;
+      {
+        uint8_t a = cpu->a;
+        uint8_t b = cpu->registers[field];
+        uint16_t result = a * b;
+
+        cpu->a = result & 0xFF;
+        cpu->b = (result & 0xFF00) >> 8;
+
+        if (isBitSet((~(a ^ b) & (a ^ result) & 0x80), 7)) {
+          cpu->f |= FLAG_O;
+        } else {
+          cpu->f &= ~FLAG_O;
+        }
+        if (result == 0) {
+          cpu->f |= FLAG_Z;
+        } else {
+          cpu->f &= ~FLAG_Z;
+        }
       }
       break;
     case DIV:
@@ -387,24 +429,51 @@ void CPU_execute(CPU* cpu, uint8_t opcode, uint8_t field) {
       if (cpu->a == 0) {
         cpu->f |= FLAG_Z;
       }
+      if (cpu->a == 0) {
+        cpu->f |= FLAG_Z;
+      } else {
+        cpu->f &= ~FLAG_Z;
+      }
       break;
     case MOD:
       cpu->a %= cpu->registers[field];
       if (cpu->a == 0) {
         cpu->f |= FLAG_Z;
+      } else {
+        cpu->f &= ~FLAG_Z;
       }
       break;
     case AND:
       cpu->a &= cpu->registers[field];
+      if (cpu->a == 0) {
+        cpu->f |= FLAG_Z;
+      } else {
+        cpu->f &= ~FLAG_Z;
+      }
       break;
     case OR:
       cpu->a |= cpu->registers[field];
+      if (cpu->a == 0) {
+        cpu->f |= FLAG_Z;
+      } else {
+        cpu->f &= ~FLAG_Z;
+      }
       break;
     case XOR:
       cpu->a ^= cpu->registers[field];
+      if (cpu->a == 0) {
+        cpu->f |= FLAG_Z;
+      } else {
+        cpu->f &= ~FLAG_Z;
+      }
       break;
     case NOT:
       cpu->a = ~(cpu->a);
+      if (cpu->a == 0) {
+        cpu->f |= FLAG_Z;
+      } else {
+        cpu->f &= ~FLAG_Z;
+      }
       break;
     case NOOP: break;
 halt:
@@ -482,9 +551,9 @@ int main(int argc, char *argv[]) {
   };
   */
   uint8_t program[] = {
-    OP(SET, 0), 0x02,
-    OP(SET, 1), 0x03,
-    OP(SUB, 1),
+    OP(SET, 0), 0xFF,
+    OP(SET, 3), 0x02,
+    OP(IMUL, 3),
     OPZ(HALT)
   };
   memcpy(cpu.memory, program, sizeof(program));
