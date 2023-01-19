@@ -123,15 +123,23 @@ void CPU_execute(CPU* cpu, uint8_t opcode, uint8_t field) {
 
     case RTL:
       {
-        uint8_t i = cpu->registers[field] << 1;
-        uint8_t j = cpu->registers[field] >> 7;
+        uint8_t value = cpu->registers[field];
+        uint8_t i = value << 1;
+        uint8_t j = value >> 7;
+        if (((value >> 8) & 0x01) == 1) {
+          cpu->f |= FLAG_C;
+        }
         cpu->registers[field] = i | j;
       }
       break;
     case RTR:
       {
-        uint8_t i = cpu->registers[field] >> 1;
-        uint8_t j = cpu->registers[field] << 7;
+        uint8_t value = cpu->registers[field];
+        uint8_t i = value >> 1;
+        uint8_t j = value << 7;
+        if ((value & 0x01) == 1) {
+          cpu->f |= FLAG_C;
+        }
         cpu->registers[field] = i | j;
       }
       break;
@@ -175,6 +183,17 @@ void CPU_execute(CPU* cpu, uint8_t opcode, uint8_t field) {
         }
       }
       break;
+    case CMP:
+      {
+        uint16_t result = cpu->a - cpu->registers[field];
+        if (result == 0) {
+          cpu->f |= FLAG_Z;
+        }
+        if (((uint8_t)(result >> 8) & 0x01) == 1) {
+          cpu->f |= FLAG_C;
+        }
+      }
+      break;
     case BRCH:
       {
         // Immediate
@@ -185,14 +204,14 @@ void CPU_execute(CPU* cpu, uint8_t opcode, uint8_t field) {
         uint8_t hi = CPU_fetch(cpu);
         uint16_t addr = (hi << 8) | lo;
         switch(field) {
-          case 0: // check Z flag
+          case 0: // check Z flag set
             {
               if ((cpu->f & FLAG_Z) != 0) {
                 cpu->ip = addr;
               }
             }
             break;
-          case 1: // check Z flag
+          case 1: // check Z flag clear
             {
               if ((cpu->f & FLAG_Z) == 0) {
                 cpu->ip = addr;
@@ -414,8 +433,9 @@ int main(int argc, char *argv[]) {
   */
   uint8_t program[] = {
     OP(SET, 0), 0x05,
-    OP(SET, 1), 0x00,
-    OP(JMP, 1),
+    OP(SET, 1), 0x05,
+    OP(CMP, 1),
+    OP(BRCH, 0), 0x09, 0x0,
     OP(SEF, 3),
     OPZ(HALT)
   };
