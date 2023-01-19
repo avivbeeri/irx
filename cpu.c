@@ -95,6 +95,10 @@ uint8_t CPU_fetch(CPU* cpu) {
   return data;
 }
 
+bool isBitSet(uint16_t value, uint8_t position) {
+  return (value & (1 << position)) != 0;
+}
+
 void CPU_execute(CPU* cpu, uint8_t opcode, uint8_t field) {
   switch (opcode) {
     case COPY_IN:
@@ -310,20 +314,66 @@ void CPU_execute(CPU* cpu, uint8_t opcode, uint8_t field) {
       break;
     case ADD:
       {
-        uint16_t result = cpu->a + cpu->registers[field];
+        uint8_t a = cpu->a;
+        uint8_t b = cpu->registers[field];
+        uint8_t carry = ((cpu->f & FLAG_C) != 0);
+        uint16_t result = a + b + carry;
         cpu->a = result;
         if (cpu->a == 0) {
           cpu->f |= FLAG_Z;
+        } else {
+          cpu->f &= ~FLAG_Z;
         }
-        if (((uint8_t)(result >> 8) & 0x01) == 1) {
+
+        if (isBitSet((~(a ^ b) & (a ^ result) & 0x80), 7)) {
+          cpu->f |= FLAG_O;
+        } else {
+          cpu->f &= ~FLAG_O;
+        }
+
+        if (isBitSet(result, 8)) {
           cpu->f |= FLAG_C;
+        } else {
+          cpu->f &= ~FLAG_C;
+        }
+
+        if (isBitSet(result, 7)) {
+          cpu->f |= FLAG_N;
+        } else {
+          cpu->f &= ~FLAG_N;
         }
       }
       break;
     case SUB:
-      cpu->a -= cpu->registers[field];
-      if (cpu->a == 0) {
-        cpu->f |= FLAG_Z;
+      {
+        uint8_t a = cpu->a;
+        uint8_t b = cpu->registers[field];
+        uint16_t carry = ((cpu->f & FLAG_C) != 0);
+        int16_t result = a - (b+carry);
+        cpu->a = result;
+        if (cpu->a == 0) {
+          cpu->f |= FLAG_Z;
+        } else {
+          cpu->f &= ~FLAG_Z;
+        }
+
+        if (isBitSet(((a ^ b) & (a ^ result) & 0x80), 7)) {
+          cpu->f |= FLAG_O;
+        } else {
+          cpu->f &= ~FLAG_O;
+        }
+
+        if (result < 0) {
+          cpu->f |= FLAG_C;
+        } else {
+          cpu->f &= ~FLAG_C;
+        }
+
+        if (isBitSet(result, 7)) {
+          cpu->f |= FLAG_N;
+        } else {
+          cpu->f &= ~FLAG_N;
+        }
       }
       break;
     case MUL:
@@ -354,7 +404,7 @@ void CPU_execute(CPU* cpu, uint8_t opcode, uint8_t field) {
       cpu->a ^= cpu->registers[field];
       break;
     case NOT:
-      cpu->a = !cpu->a;
+      cpu->a = ~(cpu->a);
       break;
     case NOOP: break;
 halt:
@@ -404,7 +454,7 @@ void CPU_dump(CPU* cpu) {
   printf("E: 0x%02X\t F: 0x%02X\n", cpu->e, cpu->f);
 
   printf("C:%i  Z:%i  I:%i  WP: %i\n", (cpu->f & FLAG_C) != 0, (cpu->f & FLAG_Z) != 0, (cpu->f & FLAG_I) != 0, (cpu->f & FLAG_WP) != 0);
-  printf("O:%i  U:%i  N:%i  BRK:%i\n", (cpu->f & FLAG_O) != 0, (cpu->f & FLAG_U) != 0, (cpu->f & FLAG_N) != 0, (cpu->f & FLAG_BRK) != 0);
+  printf("O:%i  N:%i  U:%i  BRK:%i\n", (cpu->f & FLAG_O) != 0, (cpu->f & FLAG_N) != 0, (cpu->f & FLAG_U) != 0, (cpu->f & FLAG_BRK) != 0);
 
   printf("\n");
   printf("# registers\n\n");
@@ -432,11 +482,9 @@ int main(int argc, char *argv[]) {
   };
   */
   uint8_t program[] = {
-    OP(SET, 0), 0x05,
-    OP(SET, 1), 0x05,
-    OP(CMP, 1),
-    OP(BRCH, 0), 0x09, 0x0,
-    OP(SEF, 3),
+    OP(SET, 0), 0x02,
+    OP(SET, 1), 0x03,
+    OP(SUB, 1),
     OPZ(HALT)
   };
   memcpy(cpu.memory, program, sizeof(program));
