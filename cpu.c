@@ -74,6 +74,10 @@ typedef enum {
   RTL, // rotate left
   RTR, // rotate right
 
+  PUSH,
+  POP,
+  CALL,
+  RET
 } OP;
 
 // Based on 6502 format
