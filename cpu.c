@@ -31,9 +31,16 @@ typedef struct CPU_t {
     };
   };
 
-  uint16_t ip;
+  union {
+    struct {
+      uint8_t iph;
+      uint8_t ipl;
+    };
+    uint16_t ip;
+  };
   uint8_t sp; // stack pointer
   uint8_t wp; // write-protect register (can be used for locking memory)
+  uint8_t i; // interupt status
   uint8_t memory[MEMORY_SIZE];
 
 } CPU;
@@ -74,9 +81,7 @@ typedef enum {
   RTL, // rotate left
   RTR, // rotate right
 
-  PUSH,
-  POP,
-  CALL,
+  STK,
   RET
 } OP;
 
@@ -189,6 +194,60 @@ void CPU_execute(CPU* cpu, uint8_t opcode, uint8_t field) {
               cpu->ip = addr;
             }
             break;
+          case 4:
+            {
+              // absolute jump with PC push
+              uint8_t lo = CPU_fetch(cpu);
+              uint8_t hi = CPU_fetch(cpu);
+              uint16_t addr = (hi << 8) | lo;
+
+              cpu->memory[0xFFFF - cpu->sp] = cpu->iph;
+              cpu->sp++;
+              cpu->memory[0xFFFF - cpu->sp] = cpu->ipl;
+              cpu->sp++;
+              cpu->ip = addr;
+            }
+            break;
+          case 5:
+          case 6:
+          case 7:
+            {
+              // absolute jump with PC push
+              uint8_t pair = (field - 5)*2;
+              uint8_t lo = cpu->registers[pair];
+              uint8_t hi = cpu->registers[pair+1];
+              uint16_t addr = (hi << 8) | lo;
+
+              cpu->memory[0xFFFF - cpu->sp] = cpu->iph;
+              cpu->sp++;
+              cpu->memory[0xFFFF - cpu->sp] = cpu->ipl;
+              cpu->sp++;
+              cpu->ip = addr;
+            }
+            break;
+        }
+      }
+      break;
+    case RET:
+      {
+        cpu->sp--;
+        cpu->ipl = cpu->memory[0xFFFF - cpu->sp];
+        cpu->sp--;
+        cpu->iph = cpu->memory[0xFFFF - cpu->sp];
+        printf("%X\n", cpu->ip);
+      }
+      break;
+    case STK:
+      {
+        switch(field) {
+          case 0:
+              cpu->memory[0xFFFF - cpu->sp] = cpu->a;
+              cpu->sp++;
+              break;
+          case 1:
+              cpu->sp--;
+              cpu->a = cpu->memory[0xFFFF- cpu->sp];
+              break;
         }
       }
       break;
@@ -555,10 +614,12 @@ int main(int argc, char *argv[]) {
   };
   */
   uint8_t program[] = {
-    OP(SET, 0), 0xFF,
-    OP(SET, 3), 0x02,
-    OP(IMUL, 3),
-    OPZ(HALT)
+    OP(SET, 0), 0x07,
+    OP(SET, 1), 0x00,
+    OP(JMP, 4), 0x08, 0x00,
+    OPZ(HALT),
+    OP(SET, 3), 0x42,
+    OPZ(RET)
   };
   memcpy(cpu.memory, program, sizeof(program));
 
