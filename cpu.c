@@ -9,7 +9,10 @@
    */
 
 #define STACK_SIZE 256
+#define HALT SYS
 #define MEMORY_SIZE (64 * 1024)
+#define POP_STACK(dest) do { cpu->sp--; dest = cpu->memory[0xFFFF - cpu->sp]; } while(0)
+#define PUSH_STACK(src) do { cpu->memory[0xFFFF - cpu->sp] = src; cpu->sp++; } while(0)
 
 typedef struct CPU_t {
   bool running;
@@ -46,9 +49,10 @@ typedef struct CPU_t {
 } CPU;
 
 typedef enum {
-  NOOP = 0,
-  HALT,
-  SET,
+  NOOP = 0x00,
+  SYS,// vacant
+
+// ALU
   ADD,
   SUB,
   MUL,
@@ -59,30 +63,32 @@ typedef enum {
   OR,
   XOR,
   NOT,
-  SWAP,
-  LOAD_I,
-  STORE_I,
-  LOAD_IR,
-  STORE_IR,
-
-  // Copy takes up multiple opcodes
-  COPY_IN = 0x10, // to A
-  COPY_OUT = 0x11, // from A
-
-  // Control flow
-  JMP,
-  BRCH,
-  CMP, // compare?
-
-  CLF, // clear flag
-  SEF, // set flag
   INC,
   DEC,
   RTL, // rotate left
   RTR, // rotate right
 
+  // MEMORY
+  SET,
+  SWAP,
+  LOAD_I, // Immediate address
+  STORE_I,
+  LOAD_IR, // Address in register pair.
+  STORE_IR,
+
+  COPY_IN, // to A
+  COPY_OUT, // from A
+
+  // Stack control
   STK,
-  RET
+  // Control flow
+  JMP,
+  BRCH,
+  RET,
+  CMP, // compare
+
+  CLF, // clear flag
+  SEF, // set flag
 } OP;
 
 // Based on 6502 format
@@ -170,9 +176,7 @@ void CPU_execute(CPU* cpu, uint8_t opcode, uint8_t field) {
     case JMP:
       {
         // Immediate
-        // relative
         // direct
-        // conditionals?
         switch(field) {
           case 0:
             {
@@ -196,15 +200,14 @@ void CPU_execute(CPU* cpu, uint8_t opcode, uint8_t field) {
             break;
           case 4:
             {
+              // CALL
               // absolute jump with PC push
               uint8_t lo = CPU_fetch(cpu);
               uint8_t hi = CPU_fetch(cpu);
               uint16_t addr = (hi << 8) | lo;
 
-              cpu->memory[0xFFFF - cpu->sp] = cpu->iph;
-              cpu->sp++;
-              cpu->memory[0xFFFF - cpu->sp] = cpu->ipl;
-              cpu->sp++;
+              PUSH_STACK(cpu->iph);
+              PUSH_STACK(cpu->ipl);
               cpu->ip = addr;
             }
             break;
@@ -212,16 +215,14 @@ void CPU_execute(CPU* cpu, uint8_t opcode, uint8_t field) {
           case 6:
           case 7:
             {
-              // absolute jump with PC push
+              // absolute CALL with PC push
               uint8_t pair = (field - 5)*2;
               uint8_t lo = cpu->registers[pair];
               uint8_t hi = cpu->registers[pair+1];
               uint16_t addr = (hi << 8) | lo;
 
-              cpu->memory[0xFFFF - cpu->sp] = cpu->iph;
-              cpu->sp++;
-              cpu->memory[0xFFFF - cpu->sp] = cpu->ipl;
-              cpu->sp++;
+              PUSH_STACK(cpu->iph);
+              PUSH_STACK(cpu->ipl);
               cpu->ip = addr;
             }
             break;
@@ -230,23 +231,18 @@ void CPU_execute(CPU* cpu, uint8_t opcode, uint8_t field) {
       break;
     case RET:
       {
-        cpu->sp--;
-        cpu->ipl = cpu->memory[0xFFFF - cpu->sp];
-        cpu->sp--;
-        cpu->iph = cpu->memory[0xFFFF - cpu->sp];
-        printf("%X\n", cpu->ip);
+        POP_STACK(cpu->ipl);
+        POP_STACK(cpu->iph);
       }
       break;
     case STK:
       {
         switch(field) {
           case 0:
-              cpu->memory[0xFFFF - cpu->sp] = cpu->a;
-              cpu->sp++;
+              PUSH_STACK(cpu->a);
               break;
           case 1:
-              cpu->sp--;
-              cpu->a = cpu->memory[0xFFFF- cpu->sp];
+              POP_STACK(cpu->a);
               break;
         }
       }
@@ -264,10 +260,6 @@ void CPU_execute(CPU* cpu, uint8_t opcode, uint8_t field) {
       break;
     case BRCH:
       {
-        // Immediate
-        // relative
-        // direct
-        // conditionals?
         uint8_t lo = CPU_fetch(cpu);
         uint8_t hi = CPU_fetch(cpu);
         uint16_t addr = (hi << 8) | lo;
@@ -352,10 +344,10 @@ void CPU_execute(CPU* cpu, uint8_t opcode, uint8_t field) {
       break;
     case SWAP:
       {
+        uint8_t src = CPU_fetch(cpu);
         uint8_t swap = cpu->registers[field];
-        uint8_t start = 2 * field;
-        cpu->registers[start] = cpu->registers[start + 1];
-        cpu->registers[start + 1] = swap;
+        cpu->registers[field] = cpu->registers[src];
+        cpu->registers[src] = swap;
       }
       break;
     case SET:
@@ -531,7 +523,7 @@ void CPU_execute(CPU* cpu, uint8_t opcode, uint8_t field) {
       }
       break;
     case NOT:
-      cpu->a = ~(cpu->a);
+      cpu->a = ~(cpu->registers[field]);
       if (cpu->a == 0) {
         cpu->f |= FLAG_Z;
       } else {
@@ -540,7 +532,21 @@ void CPU_execute(CPU* cpu, uint8_t opcode, uint8_t field) {
       break;
     case NOOP: break;
 halt:
-    case HALT:
+    case SYS:
+      {
+        switch (field) {
+          case 0: //HALT
+            cpu->running = false;
+            break;
+          case 1: // enable interupts
+          case 2: // disable interupts
+            break;
+
+        }
+
+
+      }
+      break;
     default: cpu->running = false;
   }
 }
@@ -572,6 +578,7 @@ void CPU_run(CPU* cpu) {
     uint8_t field = instruction >> 5;
 
     CPU_execute(cpu, opcode, field);
+    printf("%x\n", cpu->ip);
     // execute
   }
 }
@@ -618,7 +625,7 @@ int main(int argc, char *argv[]) {
     OP(SET, 1), 0x00,
     OP(JMP, 4), 0x08, 0x00,
     OPZ(HALT),
-    OP(SET, 3), 0x42,
+    OP(SWAP, 0), 0x01,
     OPZ(RET)
   };
   memcpy(cpu.memory, program, sizeof(program));
