@@ -95,7 +95,7 @@ typedef enum {
 typedef enum {
   FLAG_C = 1, // Carry
   FLAG_Z = 2, // Zero
-  FLAG_I = 4, // Interrupt
+  FLAG_I = 4, // Interrupt enabled
   FLAG_WP = 8, // Write-protect-enable
   FLAG_BRK = 16, // Break (software interrupt)
   FLAG_U = 32, // unused
@@ -569,8 +569,19 @@ void CPU_init(CPU* cpu) {
 }
 
 void CPU_run(CPU* cpu) {
-  // if halted
+  // Set initial execution address
+  cpu->ipl = cpu->memory[0];
+  cpu->iph = cpu->memory[0];
+
   while (cpu->running) {
+    if (isBitSet(cpu->f, 3) && cpu->i != 0) {
+      // service interupt
+      PUSH_STACK(cpu->f);
+      PUSH_STACK(cpu->iph);
+      PUSH_STACK(cpu->ipl);
+      cpu->ipl = cpu->memory[0x02];
+      cpu->iph = cpu->memory[0x03];
+    }
     // fetch
     uint8_t instruction = CPU_fetch(cpu);
     // decode
@@ -578,7 +589,6 @@ void CPU_run(CPU* cpu) {
     uint8_t field = instruction >> 5;
 
     CPU_execute(cpu, opcode, field);
-    printf("%x\n", cpu->ip);
     // execute
   }
 }
@@ -611,19 +621,15 @@ int main(int argc, char *argv[]) {
   CPU cpu;
   CPU_init(&cpu);
 
-  /*
+
   uint8_t program[] = {
-    OP(SET, 0), 4,
-    OP(DEC, 0),
-    OP(BRCH, 1), 2, 0, // Jump if zero
-    OP(CLF, 0),
-    OPZ(HALT)
-  };
-  */
-  uint8_t program[] = {
+    // Little-endian execution start address.
+    0x04, 0x00,
+    // Little-endian execution interupt
+    0x0C, 0x00,
     OP(SET, 0), 0x07,
     OP(SET, 1), 0x00,
-    OP(JMP, 4), 0x08, 0x00,
+    OP(JMP, 4), 0x0C, 0x00,
     OPZ(HALT),
     OP(SWAP, 0), 0x01,
     OPZ(RET)
