@@ -14,6 +14,12 @@
 #define POP_STACK(dest) do { cpu->sp--; dest = cpu->memory[0xFFFF - cpu->sp]; } while(0)
 #define PUSH_STACK(src) do { cpu->memory[0xFFFF - cpu->sp] = src; cpu->sp++; } while(0)
 
+enum DIRECTION { READ, WRITE };
+typedef uint8_t (*BUS_callback)(enum DIRECTION, uint8_t);
+typedef struct BUS_t {
+  BUS_callback callback[256];
+} BUS;
+
 typedef struct CPU_t {
   bool running;
 
@@ -30,7 +36,7 @@ typedef struct CPU_t {
 
       // Special registers
       uint8_t e;
-      uint8_t f;
+      uint8_t sp; // stack pointer
     };
   };
 
@@ -41,11 +47,13 @@ typedef struct CPU_t {
     };
     uint16_t ip;
   };
-  uint8_t sp; // stack pointer
-  uint8_t wp; // write-protect register (can be used for locking memory)
+  uint8_t f; // flags
   uint8_t i; // interupt status
-  uint8_t memory[MEMORY_SIZE];
 
+  uint8_t wp; // write-protect register (can be used for locking memory)
+  BUS bus;
+
+  uint8_t memory[MEMORY_SIZE];
 } CPU;
 
 typedef enum {
@@ -114,6 +122,23 @@ uint8_t CPU_fetch(CPU* cpu) {
 bool isBitSet(uint16_t value, uint8_t position) {
   return (value & (1 << position)) != 0;
 }
+
+void CPU_writeData(CPU* cpu) {
+  uint8_t addr = cpu->e;
+  if (cpu->bus.callback[addr] != NULL) {
+    cpu->bus.callback[addr](WRITE, cpu->a);
+  }
+}
+
+void CPU_readData(CPU* cpu) {
+  uint8_t addr = cpu->e;
+  if (cpu->bus.callback[addr] == NULL) {
+    cpu->a = 0;
+  } else {
+    cpu->a = cpu->bus.callback[addr](READ, 0);
+  }
+}
+
 
 void CPU_execute(CPU* cpu, uint8_t opcode, uint8_t field) {
   switch (opcode) {
@@ -238,10 +263,11 @@ void CPU_execute(CPU* cpu, uint8_t opcode, uint8_t field) {
             break;
           case 1:
             // RETI
+            POP_STACK(cpu->f);
             POP_STACK(cpu->ipl);
             POP_STACK(cpu->iph);
-            POP_STACK(cpu->f);
             break;
+        }
       }
       break;
     case STK:
@@ -258,12 +284,32 @@ void CPU_execute(CPU* cpu, uint8_t opcode, uint8_t field) {
       break;
     case CMP:
       {
-        uint16_t result = cpu->a - cpu->registers[field];
+        uint8_t a = cpu->a;
+        uint8_t b = cpu->registers[field];
+        uint16_t carry = ((cpu->f & FLAG_C) != 0);
+        int16_t result = a - (b+carry);
         if (result == 0) {
           cpu->f |= FLAG_Z;
+        } else {
+          cpu->f &= ~FLAG_Z;
         }
-        if (((uint8_t)(result >> 8) & 0x01) == 1) {
+
+        if (isBitSet(((a ^ b) & (a ^ result) & 0x80), 7)) {
+          cpu->f |= FLAG_O;
+        } else {
+          cpu->f &= ~FLAG_O;
+        }
+
+        if (result < 0) {
           cpu->f |= FLAG_C;
+        } else {
+          cpu->f &= ~FLAG_C;
+        }
+
+        if (isBitSet(result, 7)) {
+          cpu->f |= FLAG_N;
+        } else {
+          cpu->f &= ~FLAG_N;
         }
       }
       break;
@@ -550,10 +596,14 @@ halt:
           case 1: // enable interupts
           case 2: // disable interupts
             break;
+          case 3: // DATA_IN
+            CPU_readData(cpu);
+            break;
+          case 4: // DATA_OUT
+            CPU_writeData(cpu);
+            break;
 
         }
-
-
       }
       break;
     default: cpu->running = false;
@@ -585,9 +635,9 @@ void CPU_run(CPU* cpu) {
   while (cpu->running) {
     if (isBitSet(cpu->f, 3) && cpu->i != 0) {
       // service interupt
-      PUSH_STACK(cpu->f);
       PUSH_STACK(cpu->iph);
       PUSH_STACK(cpu->ipl);
+      PUSH_STACK(cpu->f);
       cpu->ipl = cpu->memory[0x02];
       cpu->iph = cpu->memory[0x03];
     }
@@ -626,10 +676,19 @@ void CPU_dump(CPU* cpu) {
   printf("--------------------------\n");
 }
 
+void CPU_registerBusCallback(CPU* cpu, uint8_t addr, BUS_callback callback) {
+  cpu->bus.callback[addr] = callback;
+}
+
+void CPU_raiseInterupt(CPU* cpu, uint8_t addr) {
+  if (cpu->i < 255) {
+    cpu->i++;
+  }
+}
+
 int main(int argc, char *argv[]) {
   CPU cpu;
   CPU_init(&cpu);
-
 
   uint8_t program[] = {
     // Little-endian execution start address.
