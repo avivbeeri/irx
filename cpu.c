@@ -231,8 +231,17 @@ void CPU_execute(CPU* cpu, uint8_t opcode, uint8_t field) {
       break;
     case RET:
       {
-        POP_STACK(cpu->ipl);
-        POP_STACK(cpu->iph);
+        switch(field) {
+          case 0:
+            POP_STACK(cpu->ipl);
+            POP_STACK(cpu->iph);
+            break;
+          case 1:
+            // RETI
+            POP_STACK(cpu->ipl);
+            POP_STACK(cpu->iph);
+            POP_STACK(cpu->f);
+            break;
       }
       break;
     case STK:
