@@ -586,27 +586,26 @@ void CPU_execute(CPU* cpu, uint8_t opcode, uint8_t field) {
       }
       break;
     case NOOP: break;
-halt:
-    case SYS:
-               {
-                 switch (field) {
-                   case 0: //HALT
-                     cpu->running = false;
-                     break;
-                   case 1: // enable interupts
-                   case 2: // disable interupts
-                     break;
-                   case 3: // DATA_IN
-                     CPU_readData(cpu);
-                     break;
-                   case 4: // DATA_OUT
-                     CPU_writeData(cpu);
-                     break;
-
-                 }
-               }
-               break;
     default: cpu->running = false;
+    case SYS:
+      {
+        switch (field) {
+          case 0: //HALT
+halt:
+            cpu->running = false;
+            break;
+          case 1: // enable interupts
+          case 2: // disable interupts
+            break;
+          case 3: // DATA_IN
+            CPU_readData(cpu);
+            break;
+          case 4: // DATA_OUT
+            CPU_writeData(cpu);
+            break;
+        }
+      }
+      break;
   }
 }
 
