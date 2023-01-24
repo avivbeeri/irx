@@ -60,7 +60,7 @@ typedef enum {
   NOOP = 0x00,
   SYS,// vacant
 
-// ALU
+  // ALU
   ADD,
   SUB,
   MUL,
@@ -143,12 +143,12 @@ void CPU_readData(CPU* cpu) {
 void CPU_execute(CPU* cpu, uint8_t opcode, uint8_t field) {
   switch (opcode) {
     case COPY_IN:
-        // A->A
-        // B->A
-        // C->A
-        // D->A
-        // G->A
-        // H->A
+      // A->A
+      // B->A
+      // C->A
+      // D->A
+      // G->A
+      // H->A
       {
         cpu->registers[0] = cpu->registers[field];
       }
@@ -274,11 +274,11 @@ void CPU_execute(CPU* cpu, uint8_t opcode, uint8_t field) {
       {
         switch(field) {
           case 0:
-              PUSH_STACK(cpu->a);
-              break;
+            PUSH_STACK(cpu->a);
+            break;
           case 1:
-              POP_STACK(cpu->a);
-              break;
+            POP_STACK(cpu->a);
+            break;
         }
       }
       break;
@@ -588,24 +588,24 @@ void CPU_execute(CPU* cpu, uint8_t opcode, uint8_t field) {
     case NOOP: break;
 halt:
     case SYS:
-      {
-        switch (field) {
-          case 0: //HALT
-            cpu->running = false;
-            break;
-          case 1: // enable interupts
-          case 2: // disable interupts
-            break;
-          case 3: // DATA_IN
-            CPU_readData(cpu);
-            break;
-          case 4: // DATA_OUT
-            CPU_writeData(cpu);
-            break;
+               {
+                 switch (field) {
+                   case 0: //HALT
+                     cpu->running = false;
+                     break;
+                   case 1: // enable interupts
+                   case 2: // disable interupts
+                     break;
+                   case 3: // DATA_IN
+                     CPU_readData(cpu);
+                     break;
+                   case 4: // DATA_OUT
+                     CPU_writeData(cpu);
+                     break;
 
-        }
-      }
-      break;
+                 }
+               }
+               break;
     default: cpu->running = false;
   }
 }
@@ -627,28 +627,41 @@ void CPU_init(CPU* cpu) {
   memset(cpu->memory, 0, MEMORY_SIZE);
 }
 
-void CPU_run(CPU* cpu) {
+bool CPU_step(CPU* cpu) {
+  if (!cpu->running) {
+    return false;
+  }
+
+  if (isBitSet(cpu->f, 3) && cpu->i != 0) {
+    // service interupt
+    PUSH_STACK(cpu->iph);
+    PUSH_STACK(cpu->ipl);
+    PUSH_STACK(cpu->f);
+    cpu->ipl = cpu->memory[0x02];
+    cpu->iph = cpu->memory[0x03];
+  }
+
+  uint8_t instruction = CPU_fetch(cpu);
+
+  // decode
+  uint8_t opcode = instruction & 0x1F;
+  uint8_t field = instruction >> 5;
+
+  CPU_execute(cpu, opcode, field);
+  return cpu->running;
+}
+
+bool CPU_loadMemory(CPU* cpu, void* program, size_t size) {
+  memcpy(cpu->memory, program, size);
   // Set initial execution address
   cpu->ipl = cpu->memory[0];
   cpu->iph = cpu->memory[0];
+  return true;
+}
 
+void CPU_run(CPU* cpu) {
   while (cpu->running) {
-    if (isBitSet(cpu->f, 3) && cpu->i != 0) {
-      // service interupt
-      PUSH_STACK(cpu->iph);
-      PUSH_STACK(cpu->ipl);
-      PUSH_STACK(cpu->f);
-      cpu->ipl = cpu->memory[0x02];
-      cpu->iph = cpu->memory[0x03];
-    }
-    // fetch
-    uint8_t instruction = CPU_fetch(cpu);
-    // decode
-    uint8_t opcode = instruction & 0x1F;
-    uint8_t field = instruction >> 5;
-
-    CPU_execute(cpu, opcode, field);
-    // execute
+    CPU_step(cpu);
   }
 }
 
@@ -702,8 +715,8 @@ int main(int argc, char *argv[]) {
     OP(SWAP, 0), 0x01,
     OPZ(RET)
   };
-  memcpy(cpu.memory, program, sizeof(program));
 
+  CPU_loadMemory(&cpu, &program, sizeof(program));
   CPU_run(&cpu);
   CPU_dump(&cpu);
   return 0;
