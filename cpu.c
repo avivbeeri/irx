@@ -13,6 +13,7 @@
 #define MEMORY_SIZE (64 * 1024)
 #define POP_STACK(dest) do { cpu->sp--; dest = cpu->memory[0xFFFF - cpu->sp]; } while(0)
 #define PUSH_STACK(src) do { cpu->memory[0xFFFF - cpu->sp] = src; cpu->sp++; } while(0)
+#define SET_IP(low, high) do { cpu->ip = ((high) << 8) | low; } while(0)
 
 enum DIRECTION { READ, WRITE };
 typedef uint8_t (*BUS_callback)(enum DIRECTION, uint8_t);
@@ -40,13 +41,7 @@ typedef struct CPU_t {
     };
   };
 
-  union {
-    struct {
-      uint8_t iph;
-      uint8_t ipl;
-    };
-    uint16_t ip;
-  };
+  uint16_t ip;
   uint8_t f; // flags
   uint8_t i; // interupt status
 
@@ -231,8 +226,8 @@ void CPU_execute(CPU* cpu, uint8_t opcode, uint8_t field) {
               uint8_t hi = CPU_fetch(cpu);
               uint16_t addr = (hi << 8) | lo;
 
-              PUSH_STACK(cpu->iph);
-              PUSH_STACK(cpu->ipl);
+              PUSH_STACK((cpu->ip >> 8));
+              PUSH_STACK((uint8_t)(cpu->ip & 0x00FF));
               cpu->ip = addr;
             }
             break;
@@ -246,8 +241,8 @@ void CPU_execute(CPU* cpu, uint8_t opcode, uint8_t field) {
               uint8_t hi = cpu->registers[pair+1];
               uint16_t addr = (hi << 8) | lo;
 
-              PUSH_STACK(cpu->iph);
-              PUSH_STACK(cpu->ipl);
+              PUSH_STACK((cpu->ip >> 8));
+              PUSH_STACK((uint8_t)(cpu->ip & 0x00FF));
               cpu->ip = addr;
             }
             break;
@@ -258,14 +253,22 @@ void CPU_execute(CPU* cpu, uint8_t opcode, uint8_t field) {
       {
         switch(field) {
           case 0:
-            POP_STACK(cpu->ipl);
-            POP_STACK(cpu->iph);
+            {
+              uint8_t lo, hi;
+              POP_STACK(lo);
+              POP_STACK(hi);
+              cpu->ip = (hi << 8) | lo;
+            }
             break;
           case 1:
             // RETI
-            POP_STACK(cpu->f);
-            POP_STACK(cpu->ipl);
-            POP_STACK(cpu->iph);
+            {
+              POP_STACK(cpu->f);
+              uint8_t lo, hi;
+              POP_STACK(lo);
+              POP_STACK(hi);
+              cpu->ip = (hi << 8) | lo;
+            }
             break;
         }
       }
@@ -586,7 +589,6 @@ void CPU_execute(CPU* cpu, uint8_t opcode, uint8_t field) {
       }
       break;
     case NOOP: break;
-    default: cpu->running = false;
     case SYS:
       {
         switch (field) {
@@ -606,6 +608,7 @@ halt:
         }
       }
       break;
+    default: cpu->running = false;
   }
 }
 
@@ -633,11 +636,10 @@ bool CPU_step(CPU* cpu) {
 
   if (isBitSet(cpu->f, 3) && cpu->i != 0) {
     // service interupt
-    PUSH_STACK(cpu->iph);
-    PUSH_STACK(cpu->ipl);
+    PUSH_STACK((cpu->ip >> 8));
+    PUSH_STACK((uint8_t)(cpu->ip & 0x00FF));
     PUSH_STACK(cpu->f);
-    cpu->ipl = cpu->memory[0x02];
-    cpu->iph = cpu->memory[0x03];
+    cpu->ip = (cpu->memory[3] << 8) | cpu->memory[2];
   }
 
   uint8_t instruction = CPU_fetch(cpu);
@@ -653,18 +655,19 @@ bool CPU_step(CPU* cpu) {
 bool CPU_loadMemory(CPU* cpu, void* program, size_t size) {
   memcpy(cpu->memory, program, size);
   // Set initial execution address
-  cpu->ipl = cpu->memory[0];
-  cpu->iph = cpu->memory[0];
+  cpu->ip = (cpu->memory[1] << 8) | cpu->memory[0];
   return true;
 }
 
-void CPU_run(CPU* cpu) {
-  while (cpu->running) {
-    CPU_step(cpu);
-  }
+void CPU_registerBusCallback(CPU* cpu, uint8_t addr, BUS_callback callback) {
+  cpu->bus.callback[addr] = callback;
 }
 
-
+void CPU_raiseInterupt(CPU* cpu, uint8_t addr) {
+  if (cpu->i < 255) {
+    cpu->i++;
+  }
+}
 void CPU_dump(CPU* cpu) {
   printf("------ irx cpu dump ------\n\n");
   printf("# state\n");
@@ -686,37 +689,4 @@ void CPU_dump(CPU* cpu) {
   printf("H: 0x%02X\n", cpu->h);
   printf("\n");
   printf("--------------------------\n");
-}
-
-void CPU_registerBusCallback(CPU* cpu, uint8_t addr, BUS_callback callback) {
-  cpu->bus.callback[addr] = callback;
-}
-
-void CPU_raiseInterupt(CPU* cpu, uint8_t addr) {
-  if (cpu->i < 255) {
-    cpu->i++;
-  }
-}
-
-int main(int argc, char *argv[]) {
-  CPU cpu;
-  CPU_init(&cpu);
-
-  uint8_t program[] = {
-    // Little-endian execution start address.
-    0x04, 0x00,
-    // Little-endian execution interupt
-    0x0C, 0x00,
-    OP(SET, 0), 0x07,
-    OP(SET, 1), 0x00,
-    OP(JMP, 4), 0x0C, 0x00,
-    OPZ(HALT),
-    OP(SWAP, 0), 0x01,
-    OPZ(RET)
-  };
-
-  CPU_loadMemory(&cpu, &program, sizeof(program));
-  CPU_run(&cpu);
-  CPU_dump(&cpu);
-  return 0;
 }
