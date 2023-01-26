@@ -605,6 +605,9 @@ halt:
           case 4: // DATA_OUT
             CPU_writeData(cpu);
             break;
+          case 5: // enable interupts
+            cpu->i = 0;
+            break;
         }
       }
       break;
@@ -634,7 +637,7 @@ bool CPU_step(CPU* cpu) {
     return false;
   }
 
-  if (isBitSet(cpu->f, 3) && cpu->i != 0) {
+  if (isBitSet(cpu->f, 2) && cpu->i != 0) {
     // service interupt
     PUSH_STACK((cpu->ip >> 8));
     PUSH_STACK((uint8_t)(cpu->ip & 0x00FF));
@@ -663,11 +666,12 @@ void CPU_registerBusCallback(CPU* cpu, uint8_t addr, BUS_callback callback) {
   cpu->bus.callback[addr] = callback;
 }
 
-void CPU_raiseInterupt(CPU* cpu, uint8_t addr) {
+void CPU_raiseInterrupt(CPU* cpu, uint8_t addr) {
   if (cpu->i < 255) {
     cpu->i++;
   }
 }
+
 void CPU_dump(CPU* cpu) {
   printf("------ irx cpu dump ------\n\n");
   printf("# state\n");

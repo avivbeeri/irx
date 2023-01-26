@@ -1,3 +1,4 @@
+#include <pthread.h>
 #include <ctype.h>
 #include <termios.h>
 #include <errno.h>
@@ -20,7 +21,7 @@ void enableRawMode() {
   atexit(disableRawMode);
   struct termios raw = orig_termios;
   raw.c_iflag &= ~(BRKINT | ICRNL | INPCK | ISTRIP | IXON);
-//  raw.c_oflag &= ~(OPOST);
+  raw.c_oflag &= ~(OPOST);
   raw.c_cflag |= (CS8);
   raw.c_lflag &= ~(ECHO | ICANON | IEXTEN | ISIG);
   raw.c_cc[VMIN] = 0;
@@ -28,13 +29,41 @@ void enableRawMode() {
   if (tcsetattr(STDIN_FILENO, TCSAFLUSH, &raw) == -1) die("tcsetattr");
 }
 
+char buf[256];
+uint8_t bufPtr = 0;
+uint8_t readPtr = 0;
+
+void* SERIAL_thread(void *data) {
+  CPU* cpu = data;
+
+  while (cpu->running) {
+    char c = '\0';
+    size_t count = 0;
+    if ((count = read(STDIN_FILENO, &c, 1)) == -1 && errno != EAGAIN) die("read");
+    if (c == 'q') { cpu->running = false; break; }
+    if (count > 0) {
+      buf[bufPtr++] = c;
+      CPU_raiseInterrupt(cpu, 0);
+    }
+  }
+  return NULL;
+}
+
 void TERM_run(CPU* cpu) {
   while (cpu->running) {
     CPU_step(cpu);
-    char c = '\0';
-    if (read(STDIN_FILENO, &c, 1) == -1 && errno != EAGAIN) die("read");
-    if (c == 'q') break;
   }
+}
+
+uint8_t SERIAL_io(enum DIRECTION dir, uint8_t value) {
+  if (dir == READ) {
+    return buf[readPtr++];
+  }
+  if (dir == WRITE) {
+    write(STDOUT_FILENO, &value, 1);
+    return 0;
+  }
+  return 0;
 }
 
 int main(int argc, char *argv[]) {
@@ -42,22 +71,31 @@ int main(int argc, char *argv[]) {
 
   CPU cpu;
   CPU_init(&cpu);
+  CPU_registerBusCallback(&cpu, 0, SERIAL_io);
+  pthread_t thread;
+  pthread_create(&thread, NULL, SERIAL_thread, &cpu);
 
   uint8_t program[] = {
     // Little-endian execution start address.
     0x04, 0x00,
     // Little-endian execution interupt
-    0x0C, 0x00,
-    OP(SET, 0), 0x07,
-    OP(SET, 1), 0x00,
-    OP(JMP, 4), 0x0C, 0x00,
-    OPZ(HALT),
-    OP(SWAP, 0), 0x01,
-    OPZ(RET)
+    0x0A, 0x00,
+    // Main loop
+    OP(SEF, 2),
+    OP(SET, 7), 0x00,
+    OP(JMP, 0), 0x07, 0x00,
+    // Interrupt
+    OP(SYS, 5),
+    OP(SYS, 3),
+    OP(SYS, 4),
+    OP(RET, 1),
   };
 
   CPU_loadMemory(&cpu, &program, sizeof(program));
   TERM_run(&cpu);
+  pthread_join(thread, NULL);
+  disableRawMode();
+  write(STDOUT_FILENO, "\n\r", 1);
   CPU_dump(&cpu);
   return 0;
 }
