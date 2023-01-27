@@ -6,6 +6,10 @@
 #include <unistd.h>
 #include "cpu.c"
 
+
+#define ROM_SIZE (16)
+#define MEMORY_SIZE (64 * 1024 - ROM_SIZE)
+
 struct termios orig_termios;
 void die(const char *s) {
   perror(s);
@@ -71,12 +75,31 @@ uint8_t SERIAL_io(enum DIRECTION dir, uint8_t value) {
   return 0;
 }
 
+uint8_t RAM[MEMORY_SIZE];
+uint8_t ROM[ROM_SIZE];
+
+uint8_t accessMemory(enum DIRECTION dir, uint16_t addr, uint8_t value) {
+  if (dir == READ) {
+    if (addr < ROM_SIZE) {
+      return ROM[addr];
+    } else {
+      return RAM[addr - ROM_SIZE];
+    }
+  } else {
+    if (addr >= ROM_SIZE) {
+      RAM[addr - ROM_SIZE] = value;
+    }
+  }
+  return 0;
+}
+
 int main(int argc, char *argv[]) {
   enableRawMode();
 
   CPU cpu;
   CPU_init(&cpu);
   CPU_registerBusCallback(&cpu, 0, SERIAL_io);
+  CPU_registerMemCallback(&cpu, accessMemory);
   pthread_t thread;
   pthread_create(&thread, NULL, SERIAL_thread, &cpu);
 
@@ -102,7 +125,7 @@ int main(int argc, char *argv[]) {
     OP(RET, 1),
   };
 
-  CPU_loadMemory(&cpu, &program, sizeof(program));
+  memcpy(ROM, &program, sizeof(program));
   TERM_run(&cpu);
   pthread_join(thread, NULL);
   disableRawMode();
