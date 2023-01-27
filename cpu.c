@@ -57,8 +57,9 @@ typedef enum {
   ADD,
   SUB,
   MUL,
-  IMUL,
+  IMUL, // necessary?
   DIV,
+  // ALU immediate modes?
   MOD,
   AND,
   OR,
@@ -68,10 +69,11 @@ typedef enum {
   DEC,
   RTL, // rotate left
   RTR, // rotate right
+  // TODO: shift L/R
 
-  // MEMORY
+  // MEMORY and Register ops
   SET,
-  SWAP,
+  SWAP, // necessary?
   LOAD_I, // Immediate address
   STORE_I,
   LOAD_IR, // Address in register pair.
@@ -81,6 +83,7 @@ typedef enum {
   COPY_OUT, // from A
 
   // Stack control
+  // Could merge opcodes with
   STK,
   // Control flow
   JMP,
