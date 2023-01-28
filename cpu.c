@@ -10,12 +10,12 @@
 
 #define STACK_SIZE 256
 #define HALT SYS
-#define MEMORY_SIZE (64 * 1024)
-#define POP_STACK(dest) do { cpu->sp--; dest = cpu->memory[0xFFFF - cpu->sp]; } while(0)
-#define PUSH_STACK(src) do { cpu->memory[0xFFFF - cpu->sp] = src; cpu->sp++; } while(0)
+#define POP_STACK(dest) do { cpu->sp--; dest = cpu->memory(READ, 0xFFFF - cpu->sp, 0); } while(0)
+#define PUSH_STACK(src) do { cpu->memory(WRITE, 0xFFFF - cpu->sp, src); cpu->sp++; } while(0)
 #define SET_IP(low, high) do { cpu->ip = ((high) << 8) | low; } while(0)
 
 enum DIRECTION { READ, WRITE };
+typedef uint8_t (*MEM_callback)(enum DIRECTION, uint16_t, uint8_t);
 typedef uint8_t (*BUS_callback)(enum DIRECTION, uint8_t);
 typedef struct BUS_t {
   BUS_callback callback[256];
@@ -45,10 +45,8 @@ typedef struct CPU_t {
   uint8_t f; // flags
   uint8_t i; // interupt status
 
-  uint8_t wp; // write-protect register (can be used for locking memory)
   BUS bus;
-
-  uint8_t memory[MEMORY_SIZE];
+  MEM_callback memory;
 } CPU;
 
 typedef enum {
@@ -59,8 +57,9 @@ typedef enum {
   ADD,
   SUB,
   MUL,
-  IMUL,
+  IMUL, // necessary?
   DIV,
+  // ALU immediate modes?
   MOD,
   AND,
   OR,
@@ -70,10 +69,11 @@ typedef enum {
   DEC,
   RTL, // rotate left
   RTR, // rotate right
+  // TODO: shift L/R
 
-  // MEMORY
+  // MEMORY and Register ops
   SET,
-  SWAP,
+  SWAP, // necessary?
   LOAD_I, // Immediate address
   STORE_I,
   LOAD_IR, // Address in register pair.
@@ -83,6 +83,7 @@ typedef enum {
   COPY_OUT, // from A
 
   // Stack control
+  // Could merge opcodes with
   STK,
   // Control flow
   JMP,
@@ -99,7 +100,7 @@ typedef enum {
   FLAG_C = 1, // Carry
   FLAG_Z = 2, // Zero
   FLAG_I = 4, // Interrupt enabled
-  FLAG_WP = 8, // Write-protect-enable
+  FLAG_U2 = 8, // Write-protect-enable
   FLAG_BRK = 16, // Break (software interrupt)
   FLAG_U = 32, // unused
   FLAG_N = 64, // Negative
@@ -110,7 +111,7 @@ typedef enum {
 #define OP(opcode, flag) (flag << 5) | opcode
 
 uint8_t CPU_fetch(CPU* cpu) {
-  uint8_t data = cpu->memory[cpu->ip++];
+  uint8_t data = cpu->memory(READ, cpu->ip++, 0);
   return data;
 }
 
@@ -133,7 +134,6 @@ void CPU_readData(CPU* cpu) {
     cpu->a = cpu->bus.callback[addr](READ, 0);
   }
 }
-
 
 void CPU_execute(CPU* cpu, uint8_t opcode, uint8_t field) {
   switch (opcode) {
@@ -387,7 +387,7 @@ void CPU_execute(CPU* cpu, uint8_t opcode, uint8_t field) {
         uint8_t lo = CPU_fetch(cpu);
         uint8_t hi = CPU_fetch(cpu);
         uint16_t addr = (hi << 8) | lo;
-        cpu->memory[addr] = cpu->registers[field];
+        cpu->memory(WRITE, addr, cpu->registers[field]);
       }
       break;
     case LOAD_I:
@@ -397,7 +397,7 @@ void CPU_execute(CPU* cpu, uint8_t opcode, uint8_t field) {
         uint8_t lo = CPU_fetch(cpu);
         uint8_t hi = CPU_fetch(cpu);
         uint16_t addr = (hi << 8) | lo;
-        cpu->registers[field] = cpu->memory[addr];
+        cpu->registers[field] = cpu->memory(READ, addr, 0);
       }
       break;
     case SWAP:
@@ -605,11 +605,18 @@ halt:
           case 4: // DATA_OUT
             CPU_writeData(cpu);
             break;
+          case 5: // enable interupts
+            cpu->i = 0;
+            break;
         }
       }
       break;
     default: cpu->running = false;
   }
+}
+
+uint8_t CPU_defaultMemAccess(enum DIRECTION dir, uint16_t addr, uint8_t value) {
+  return 0;
 }
 
 void CPU_init(CPU* cpu) {
@@ -626,7 +633,7 @@ void CPU_init(CPU* cpu) {
 
   cpu->ip = 0;
   cpu->sp = 0;
-  memset(cpu->memory, 0, MEMORY_SIZE);
+  cpu->memory = CPU_defaultMemAccess;
 }
 
 bool CPU_step(CPU* cpu) {
@@ -634,12 +641,14 @@ bool CPU_step(CPU* cpu) {
     return false;
   }
 
-  if (isBitSet(cpu->f, 3) && cpu->i != 0) {
+  if (isBitSet(cpu->f, 2) && cpu->i != 0) {
     // service interupt
     PUSH_STACK((cpu->ip >> 8));
     PUSH_STACK((uint8_t)(cpu->ip & 0x00FF));
     PUSH_STACK(cpu->f);
-    cpu->ip = (cpu->memory[3] << 8) | cpu->memory[2];
+    uint8_t hi = cpu->memory(READ, 0x03, 0);
+    uint8_t lo = cpu->memory(READ, 0x02, 0);
+    cpu->ip = (hi << 8) | lo;
   }
 
   uint8_t instruction = CPU_fetch(cpu);
@@ -652,22 +661,20 @@ bool CPU_step(CPU* cpu) {
   return cpu->running;
 }
 
-bool CPU_loadMemory(CPU* cpu, void* program, size_t size) {
-  memcpy(cpu->memory, program, size);
-  // Set initial execution address
-  cpu->ip = (cpu->memory[1] << 8) | cpu->memory[0];
-  return true;
+void CPU_registerMemCallback(CPU* cpu, MEM_callback callback) {
+  cpu->memory = callback;
 }
 
 void CPU_registerBusCallback(CPU* cpu, uint8_t addr, BUS_callback callback) {
   cpu->bus.callback[addr] = callback;
 }
 
-void CPU_raiseInterupt(CPU* cpu, uint8_t addr) {
+void CPU_raiseInterrupt(CPU* cpu, uint8_t addr) {
   if (cpu->i < 255) {
     cpu->i++;
   }
 }
+
 void CPU_dump(CPU* cpu) {
   printf("------ irx cpu dump ------\n\n");
   printf("# state\n");
@@ -676,7 +683,7 @@ void CPU_dump(CPU* cpu) {
   printf("SP: 0x%04X\n", cpu->sp);
   printf("E: 0x%02X\t F: 0x%02X\n", cpu->e, cpu->f);
 
-  printf("C:%i  Z:%i  I:%i  WP: %i\n", (cpu->f & FLAG_C) != 0, (cpu->f & FLAG_Z) != 0, (cpu->f & FLAG_I) != 0, (cpu->f & FLAG_WP) != 0);
+  printf("C:%i  Z:%i  I:%i  U2: %i\n", (cpu->f & FLAG_C) != 0, (cpu->f & FLAG_Z) != 0, (cpu->f & FLAG_I) != 0, (cpu->f & FLAG_U2) != 0);
   printf("O:%i  N:%i  U:%i  BRK:%i\n", (cpu->f & FLAG_O) != 0, (cpu->f & FLAG_N) != 0, (cpu->f & FLAG_U) != 0, (cpu->f & FLAG_BRK) != 0);
 
   printf("\n");
