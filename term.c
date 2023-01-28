@@ -34,7 +34,7 @@ void enableRawMode() {
 }
 
 char buf[256];
-uint8_t bufPtr = 0;
+uint8_t bufPtr = 1;
 uint8_t readPtr = 0;
 
 #define CTRL_KEY(k) ((k) & 0x1f)
@@ -45,12 +45,13 @@ void* SERIAL_thread(void *data) {
     char c = '\0';
     size_t count = 0;
     if ((count = read(STDIN_FILENO, &c, 1)) == -1 && errno != EAGAIN) die("read");
-    if (iscntrl(c)) {
-      if (c == CTRL_KEY('q')) {
-        cpu->running = false;
-      }
-    }
     if (count > 0) {
+      if (iscntrl(c)) {
+        if (c == CTRL_KEY('q')) {
+          cpu->running = false;
+          break;
+        }
+      }
       buf[bufPtr++] = c;
       CPU_raiseInterrupt(cpu, 0);
     }
@@ -123,6 +124,7 @@ int main(int argc, char *argv[]) {
     OP(SYS, 4),
     // RETI
     OP(RET, 1),
+    OPZ(NOOP)
   };
 
   memcpy(ROM, &program, sizeof(program));
