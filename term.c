@@ -110,20 +110,20 @@ int main(int argc, char *argv[]) {
     // Little-endian execution interupt
     0x0A, 0x00,
     // Main loop
-    OP(SEF, 2),
+    OP(SEF, 4),
     OP(SET, 7), 0x00,
     OP(JMP, 0), 0x07, 0x00,
     // Interrupt
     // clear interupt count
-    OP(SYS, 5),
-    // Read from device bus
     OP(SYS, 3),
+    // Read from device bus
+    OP(SYS, 1),
     // store character
     OP(COPY_OUT, 1),
     // write to terminal
-    OP(SYS, 4),
+    OP(SYS, 2),
     // RETI
-    OP(RET, 1),
+    OP(STK, 1),
     OPZ(NOOP)
   };
 

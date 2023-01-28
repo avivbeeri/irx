@@ -83,28 +83,31 @@ typedef enum {
   COPY_OUT, // from A
 
   // Stack control
-  // Could merge opcodes with
-  STK,
   // Control flow
   JMP,
   BRCH,
-  RET,
+  STK,
   CMP, // compare
 
   CLF, // clear flag
   SEF, // set flag
+
+  // No more opcodes
+  END = 0x20,
+  // Reserved for 2-byte opcodes
+  EXT = 0xFF,
 } OP;
 
 // Based on 6502 format
 typedef enum {
   FLAG_C = 1, // Carry
   FLAG_Z = 2, // Zero
-  FLAG_I = 4, // Interrupt enabled
-  FLAG_U2 = 8, // Write-protect-enable
-  FLAG_BRK = 16, // Break (software interrupt)
-  FLAG_U = 32, // unused
-  FLAG_N = 64, // Negative
-  FLAG_O = 128, // Overflow
+  FLAG_N = 4, // Negative
+  FLAG_O = 8, // Overflow
+  FLAG_I = 16, // Interrupt enabled
+  FLAG_BRK = 32, // Break (software interrupt)
+  FLAG_U2 = 64, // Write-protect-enable
+  FLAG_U = 128, // unused
 } FLAG;
 
 #define OPZ(opcode) opcode
@@ -185,7 +188,7 @@ void CPU_execute(CPU* cpu, uint8_t opcode, uint8_t field) {
       break;
     case CLF:
       {
-        cpu->f ^= (1 << field);
+        cpu->f &= ~(1 << field);
       }
       break;
     case SEF:
@@ -235,7 +238,7 @@ void CPU_execute(CPU* cpu, uint8_t opcode, uint8_t field) {
           case 6:
           case 7:
             {
-              // absolute CALL with PC push
+              // register CALL with PC push
               uint8_t pair = (field - 5)*2;
               uint8_t lo = cpu->registers[pair];
               uint8_t hi = cpu->registers[pair+1];
@@ -249,10 +252,10 @@ void CPU_execute(CPU* cpu, uint8_t opcode, uint8_t field) {
         }
       }
       break;
-    case RET:
+    case STK:
       {
         switch(field) {
-          case 0:
+          case 0: // RET
             {
               uint8_t lo, hi;
               POP_STACK(lo);
@@ -270,49 +273,24 @@ void CPU_execute(CPU* cpu, uint8_t opcode, uint8_t field) {
               cpu->ip = (hi << 8) | lo;
             }
             break;
-        }
-      }
-      break;
-    case STK:
-      {
-        switch(field) {
-          case 0:
+          case 2: // PUSH A
             PUSH_STACK(cpu->a);
             break;
-          case 1:
+          case 3: // POP A
             POP_STACK(cpu->a);
             break;
-        }
-      }
-      break;
-    case CMP:
-      {
-        uint8_t a = cpu->a;
-        uint8_t b = cpu->registers[field];
-        uint16_t carry = ((cpu->f & FLAG_C) != 0);
-        int16_t result = a - (b+carry);
-        if (result == 0) {
-          cpu->f |= FLAG_Z;
-        } else {
-          cpu->f &= ~FLAG_Z;
-        }
-
-        if (isBitSet(((a ^ b) & (a ^ result) & 0x80), 7)) {
-          cpu->f |= FLAG_O;
-        } else {
-          cpu->f &= ~FLAG_O;
-        }
-
-        if (result < 0) {
-          cpu->f |= FLAG_C;
-        } else {
-          cpu->f &= ~FLAG_C;
-        }
-
-        if (isBitSet(result, 7)) {
-          cpu->f |= FLAG_N;
-        } else {
-          cpu->f &= ~FLAG_N;
+          case 4: // PUSH B
+            PUSH_STACK(cpu->b);
+            break;
+          case 5: // POP B
+            POP_STACK(cpu->b);
+            break;
+          case 6: // PUSH C
+            PUSH_STACK(cpu->c);
+            break;
+          case 7: // POP C
+            POP_STACK(cpu->c);
+            break;
         }
       }
       break;
@@ -378,6 +356,37 @@ void CPU_execute(CPU* cpu, uint8_t opcode, uint8_t field) {
               }
             }
             break;
+        }
+      }
+      break;
+    case CMP:
+      {
+        uint8_t a = cpu->a;
+        uint8_t b = cpu->registers[field];
+        uint16_t carry = ((cpu->f & FLAG_C) != 0);
+        int16_t result = a - (b+carry);
+        if (result == 0) {
+          cpu->f |= FLAG_Z;
+        } else {
+          cpu->f &= ~FLAG_Z;
+        }
+
+        if (isBitSet(((a ^ b) & (a ^ result) & 0x80), 7)) {
+          cpu->f |= FLAG_O;
+        } else {
+          cpu->f &= ~FLAG_O;
+        }
+
+        if (result < 0) {
+          cpu->f |= FLAG_C;
+        } else {
+          cpu->f &= ~FLAG_C;
+        }
+
+        if (isBitSet(result, 7)) {
+          cpu->f |= FLAG_N;
+        } else {
+          cpu->f &= ~FLAG_N;
         }
       }
       break;
@@ -541,9 +550,6 @@ void CPU_execute(CPU* cpu, uint8_t opcode, uint8_t field) {
       cpu->a /= cpu->registers[field];
       if (cpu->a == 0) {
         cpu->f |= FLAG_Z;
-      }
-      if (cpu->a == 0) {
-        cpu->f |= FLAG_Z;
       } else {
         cpu->f &= ~FLAG_Z;
       }
@@ -596,16 +602,13 @@ void CPU_execute(CPU* cpu, uint8_t opcode, uint8_t field) {
 halt:
             cpu->running = false;
             break;
-          case 1: // enable interupts
-          case 2: // disable interupts
-            break;
-          case 3: // DATA_IN
+          case 1: // DATA_IN
             CPU_readData(cpu);
             break;
-          case 4: // DATA_OUT
+          case 2: // DATA_OUT
             CPU_writeData(cpu);
             break;
-          case 5: // enable interupts
+          case 3: // clear interupt value
             cpu->i = 0;
             break;
         }
@@ -641,13 +644,13 @@ bool CPU_step(CPU* cpu) {
     return false;
   }
 
-  if (isBitSet(cpu->f, 2) && cpu->i != 0) {
+  if ((cpu->f & FLAG_I) != 0 && (cpu->i != 0)) {
     // service interupt
     PUSH_STACK((cpu->ip >> 8));
     PUSH_STACK((uint8_t)(cpu->ip & 0x00FF));
     PUSH_STACK(cpu->f);
-    uint8_t hi = cpu->memory(READ, 0x03, 0);
     uint8_t lo = cpu->memory(READ, 0x02, 0);
+    uint8_t hi = cpu->memory(READ, 0x03, 0);
     cpu->ip = (hi << 8) | lo;
   }
 

@@ -42,7 +42,7 @@ int main(int argc, char *argv[]) {
     OP(JMP, 4), 0x0C, 0x00,
     OPZ(HALT),
     OP(SWAP, 0), 0x01,
-    OPZ(RET)
+    OPZ(STK)
   };
 
   memcpy(ROM, &program, sizeof(program));
