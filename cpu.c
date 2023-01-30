@@ -57,10 +57,6 @@ typedef enum {
   ADD,
   SUB,
   MUL,
-  IMUL, // necessary?
-  DIV,
-  // ALU immediate modes?
-  MOD,
   AND,
   OR,
   XOR,
@@ -69,7 +65,8 @@ typedef enum {
   DEC,
   RTL, // rotate left
   RTR, // rotate right
-  // TODO: shift L/R
+  SHL,
+  SHR,
 
   // MEMORY and Register ops
   SET,
@@ -84,10 +81,11 @@ typedef enum {
 
   // Stack control
   // Control flow
+  CMP, // compare
   JMP,
   BRCH,
   STK,
-  CMP, // compare
+  STK2, // TODO: ???
 
   CLF, // clear flag
   SEF, // set flag
@@ -164,6 +162,22 @@ void CPU_execute(CPU* cpu, uint8_t opcode, uint8_t field) {
       }
       break;
 
+    case SHL:
+      {
+        uint8_t value = cpu->registers[field];
+        if (((value >> 8) & 0x01) == 1) {
+          cpu->f |= FLAG_C;
+        }
+        cpu->registers[field] = value << 1;
+      }
+      break;
+    case SHR:
+      {
+        uint8_t value = cpu->registers[field];
+        cpu->registers[field] = value >> 1;
+        cpu->f &= ~FLAG_C;
+      }
+      break;
     case RTL:
       {
         uint8_t value = cpu->registers[field];
@@ -397,6 +411,10 @@ void CPU_execute(CPU* cpu, uint8_t opcode, uint8_t field) {
         uint8_t hi = CPU_fetch(cpu);
         uint16_t addr = (hi << 8) | lo;
         cpu->memory(WRITE, addr, cpu->registers[field]);
+        cpu->f &= ~FLAG_Z;
+        cpu->f &= ~FLAG_C;
+        cpu->f &= ~FLAG_N;
+        cpu->f &= ~FLAG_O;
       }
       break;
     case LOAD_I:
@@ -407,6 +425,10 @@ void CPU_execute(CPU* cpu, uint8_t opcode, uint8_t field) {
         uint8_t hi = CPU_fetch(cpu);
         uint16_t addr = (hi << 8) | lo;
         cpu->registers[field] = cpu->memory(READ, addr, 0);
+        cpu->f &= ~FLAG_Z;
+        cpu->f &= ~FLAG_C;
+        cpu->f &= ~FLAG_N;
+        cpu->f &= ~FLAG_O;
       }
       break;
     case SWAP:
@@ -415,24 +437,54 @@ void CPU_execute(CPU* cpu, uint8_t opcode, uint8_t field) {
         uint8_t swap = cpu->registers[field];
         cpu->registers[field] = cpu->registers[src];
         cpu->registers[src] = swap;
+
+        cpu->f &= ~FLAG_Z;
+        cpu->f &= ~FLAG_C;
+        cpu->f &= ~FLAG_N;
+        cpu->f &= ~FLAG_O;
       }
       break;
     case SET:
       {
         uint8_t value = CPU_fetch(cpu);
         cpu->registers[field] = value;
+        if (cpu->a == 0) {
+          cpu->f |= FLAG_Z;
+        } else {
+          cpu->f &= ~FLAG_Z;
+        }
       }
       break;
     case DEC:
-      cpu->registers[field] -= 1;
-      if (cpu->a == 0) {
-        cpu->f |= FLAG_Z;
+      {
+        uint8_t result = cpu->registers[field] -= 1;
+        if (cpu->a == 0) {
+          cpu->f |= FLAG_Z;
+        } else {
+          cpu->f &= ~FLAG_Z;
+        }
+
+        if (isBitSet(result, 7)) {
+          cpu->f |= FLAG_N;
+        } else {
+          cpu->f &= ~FLAG_N;
+        }
       }
       break;
     case INC:
-      cpu->registers[field] += 1;
-      if (cpu->a == 0) {
-        cpu->f |= FLAG_Z;
+      {
+        uint8_t result = cpu->registers[field] += 1;
+        if (cpu->a == 0) {
+          cpu->f |= FLAG_Z;
+        } else {
+          cpu->f &= ~FLAG_Z;
+        }
+
+        if (isBitSet(result, 7)) {
+          cpu->f |= FLAG_N;
+        } else {
+          cpu->f &= ~FLAG_N;
+        }
       }
       break;
     case ADD:
@@ -499,32 +551,6 @@ void CPU_execute(CPU* cpu, uint8_t opcode, uint8_t field) {
         }
       }
       break;
-    case IMUL:
-      {
-        int8_t a = cpu->a;
-        int8_t b = cpu->registers[field];
-        int16_t result = a * b;
-
-        cpu->a = result & 0xFF;
-        cpu->b = (result & 0xFF00) >> 8;
-
-        if (isBitSet((~(a ^ b) & (a ^ result) & 0x80), 7)) {
-          cpu->f |= FLAG_O;
-        } else {
-          cpu->f &= ~FLAG_O;
-        }
-        if (result == 0) {
-          cpu->f |= FLAG_Z;
-        } else {
-          cpu->f &= ~FLAG_Z;
-        }
-        if (result < 0) {
-          cpu->f |= FLAG_N;
-        } else {
-          cpu->f &= ~FLAG_N;
-        }
-      }
-      break;
     case MUL:
       {
         uint8_t a = cpu->a;
@@ -544,22 +570,6 @@ void CPU_execute(CPU* cpu, uint8_t opcode, uint8_t field) {
         } else {
           cpu->f &= ~FLAG_Z;
         }
-      }
-      break;
-    case DIV:
-      cpu->a /= cpu->registers[field];
-      if (cpu->a == 0) {
-        cpu->f |= FLAG_Z;
-      } else {
-        cpu->f &= ~FLAG_Z;
-      }
-      break;
-    case MOD:
-      cpu->a %= cpu->registers[field];
-      if (cpu->a == 0) {
-        cpu->f |= FLAG_Z;
-      } else {
-        cpu->f &= ~FLAG_Z;
       }
       break;
     case AND:
@@ -599,7 +609,6 @@ void CPU_execute(CPU* cpu, uint8_t opcode, uint8_t field) {
       {
         switch (field) {
           case 0: //HALT
-halt:
             cpu->running = false;
             break;
           case 1: // DATA_IN

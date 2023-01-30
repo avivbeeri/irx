@@ -1,3 +1,4 @@
+CFLAGS += -Wall
 term: term.c cpu.c 
 	gcc term.c $(CFLAGS) $(IFLAGS) $(LDFLAGS) -lpthread -o term
 vm: vm.c cpu.c
