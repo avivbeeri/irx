@@ -266,6 +266,8 @@ void CPU_execute(CPU* cpu, uint8_t opcode, uint8_t field) {
         }
       }
       break;
+    case STK2:
+      field += 8;
     case STK:
       {
         switch(field) {
@@ -304,6 +306,30 @@ void CPU_execute(CPU* cpu, uint8_t opcode, uint8_t field) {
             break;
           case 7: // POP C
             POP_STACK(cpu->c);
+            break;
+          case 8: // PUSH D
+            PUSH_STACK(cpu->d);
+            break;
+          case 9: // POP D
+            POP_STACK(cpu->d);
+            break;
+          case 10: // PUSH G
+            PUSH_STACK(cpu->g);
+            break;
+          case 11: // POP G
+            POP_STACK(cpu->g);
+            break;
+          case 12: // PUSH H
+            PUSH_STACK(cpu->h);
+            break;
+          case 13: // POP H
+            POP_STACK(cpu->h);
+            break;
+          case 14: // PUSH E
+            PUSH_STACK(cpu->e);
+            break;
+          case 15: // POP E
+            POP_STACK(cpu->e);
             break;
         }
       }
