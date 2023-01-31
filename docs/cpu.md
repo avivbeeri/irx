@@ -14,15 +14,83 @@ This means that irx can only address a maximum of 64 kilobytes of memory.
 irx has a selection of 8-bit registers.
 
  * A, B, C, D, G, H - General purpose registers. These are paired for certain 16-bit operations. The A register is used for accumulator operations.
- * E, F - Extra, Flags (Zero, Carry, Error)
- * IP - Instruction Pointer, 16-bit
+ * E, External address register
  * SP - Stack Pointer, 8-bit.
+ * F - Flags (Zero, Carry, Error)
+ * IP - Instruction Pointer, 16-bit
 
+Flags are arranged like this:
+  7|6|5|4|3|2|1|0
+  ---------------
+  U|U|B|I|O|N|Z|C
 
-The E register is currently unused. F is where flags are stored.
+0) Carry
+1) Zero
+2) Negative
+3) Overflow
+4) Interrupt-Enable
+5) Break (software-interrupt)
+6) Unused
+7) Unused
+
 The stack grows downwards from the end of the memory space. It is used
 for subroutine execution.
 
 ## Instruction Set
 
 irx's instruction set is still in development.
+
+### 0x00 NOOP
+
+Mnemonic: NOP
+Opcode: 0x00
+
+Performs no action
+
+fffr0000
+
+0x00: NOP
+0x01: SYS (HALT, DATA_IN, DATA_OUT, CLEAR_INT, RET, RETI)
+0x02: CLF (all flags)
+0x03: SEF (all flags)
+
+0x04: STK(Push/pop vars)
+0x05: STK2(Push/pop vars)
+0x06: COPY_IN(All registers)
+0x07: COPY_OUT(All registers)
+
+0x08: INC (All registers)
+0x09: DEC (All registers)
+0x0A: RTL (All registers)
+0x0B: RTR (All registers)
+0x0C: SHL (All registers)
+0x0D: SHR (All registers)
+0x0E: NOT (All registers)
+0x0F: AND (All registers)
+0x10: OR (All registers)
+0x11: XOR (All registers)
+0x12: ADD (All registers)
+0x13: SUB (All registers)
+0x14: MUL (All registers)
+0x15: CMP (All registers)
+
+0x16: SET (All registers, immediate)
+0x17: SWAP (All registers)
+0x18: LOAD_I (All registers, immediate location)
+0x19: STORE_I (All registers, immediate location)
+
+0x1A: JMP (immediate, pair-wise direct, call, pair-wise)
+0x1B: BRCH (4 flags, positive and negative)
+0x1C:
+0x1D: ??
+0x1E: ??
+0x1F: ??
+
+i
+
+
+
+
+
+
+

@@ -123,7 +123,7 @@ int main(int argc, char *argv[]) {
     // write to terminal
     OP(SYS, 2),
     // RETI
-    OP(STK, 1),
+    OP(SYS, 5),
     OPZ(NOOP)
   };
 

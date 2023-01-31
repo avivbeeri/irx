@@ -52,43 +52,36 @@ typedef struct CPU_t {
 typedef enum {
   NOOP = 0x00,
   SYS,// vacant
-
+  CLF, // clear flag
+  SEF, // set flag
+  // Stack control
+  STK,
+  STK2, // TODO: ???
+  COPY_IN, // to A
+  COPY_OUT, // from A
   // ALU
-  ADD,
-  SUB,
-  MUL,
-  AND,
-  OR,
-  XOR,
-  NOT,
   INC,
   DEC,
   RTL, // rotate left
   RTR, // rotate right
   SHL,
   SHR,
-
+  NOT,
+  AND,
+  OR,
+  XOR,
+  ADD,
+  SUB,
+  MUL,
+  CMP,
   // MEMORY and Register ops
   SET,
   SWAP, // necessary?
   LOAD_I, // Immediate address
   STORE_I,
-  LOAD_IR, // Address in register pair.
-  STORE_IR,
-
-  COPY_IN, // to A
-  COPY_OUT, // from A
-
-  // Stack control
   // Control flow
-  CMP, // compare
   JMP,
   BRCH,
-  STK,
-  STK2, // TODO: ???
-
-  CLF, // clear flag
-  SEF, // set flag
 
   // No more opcodes
   END = 0x20,
@@ -270,67 +263,10 @@ void CPU_execute(CPU* cpu, uint8_t opcode, uint8_t field) {
       field += 8;
     case STK:
       {
-        switch(field) {
-          case 0: // RET
-            {
-              uint8_t lo, hi;
-              POP_STACK(lo);
-              POP_STACK(hi);
-              cpu->ip = (hi << 8) | lo;
-            }
-            break;
-          case 1:
-            // RETI
-            {
-              POP_STACK(cpu->f);
-              uint8_t lo, hi;
-              POP_STACK(lo);
-              POP_STACK(hi);
-              cpu->ip = (hi << 8) | lo;
-            }
-            break;
-          case 2: // PUSH A
-            PUSH_STACK(cpu->a);
-            break;
-          case 3: // POP A
-            POP_STACK(cpu->a);
-            break;
-          case 4: // PUSH B
-            PUSH_STACK(cpu->b);
-            break;
-          case 5: // POP B
-            POP_STACK(cpu->b);
-            break;
-          case 6: // PUSH C
-            PUSH_STACK(cpu->c);
-            break;
-          case 7: // POP C
-            POP_STACK(cpu->c);
-            break;
-          case 8: // PUSH D
-            PUSH_STACK(cpu->d);
-            break;
-          case 9: // POP D
-            POP_STACK(cpu->d);
-            break;
-          case 10: // PUSH G
-            PUSH_STACK(cpu->g);
-            break;
-          case 11: // POP G
-            POP_STACK(cpu->g);
-            break;
-          case 12: // PUSH H
-            PUSH_STACK(cpu->h);
-            break;
-          case 13: // POP H
-            POP_STACK(cpu->h);
-            break;
-          case 14: // PUSH E
-            PUSH_STACK(cpu->e);
-            break;
-          case 15: // POP E
-            POP_STACK(cpu->e);
-            break;
+        if (field < 8) {
+          PUSH_STACK(cpu->registers[field % 8]);
+        } else {
+          POP_STACK(cpu->registers[field % 8]);
         }
       }
       break;
@@ -645,6 +581,24 @@ void CPU_execute(CPU* cpu, uint8_t opcode, uint8_t field) {
             break;
           case 3: // clear interupt value
             cpu->i = 0;
+            break;
+          case 4: // RET
+            {
+              uint8_t lo, hi;
+              POP_STACK(lo);
+              POP_STACK(hi);
+              cpu->ip = (hi << 8) | lo;
+            }
+            break;
+          case 5:
+            // RETI
+            {
+              POP_STACK(cpu->f);
+              uint8_t lo, hi;
+              POP_STACK(lo);
+              POP_STACK(hi);
+              cpu->ip = (hi << 8) | lo;
+            }
             break;
         }
       }
