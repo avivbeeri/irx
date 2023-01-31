@@ -74,19 +74,21 @@ typedef enum {
   SUB,
   MUL,
   CMP,
+  LOAD_R,
+  STORE_R,
   // MEMORY and Register ops
-  SET,
+  // These instructions need at least one extra byte from memory
+  SET = 0x18,
   SWAP, // necessary?
   LOAD_I, // Immediate address
   STORE_I,
   // Control flow
   JMP,
   BRCH,
-
+  END = 0x1E,
+  // Reserved for future(?) 2-byte opcodes
+  EXT = 0x1F,
   // No more opcodes
-  END = 0x20,
-  // Reserved for 2-byte opcodes
-  EXT = 0xFF,
 } OP;
 
 // Based on 6502 format
