@@ -74,20 +74,20 @@ typedef enum {
   SUB,
   MUL,
   CMP,
-  LOAD_R,
-  STORE_R,
+  U1,
+  // Reserved for future(?) 2-byte opcodes
+  EXT,
   // MEMORY and Register ops
   // These instructions need at least one extra byte from memory
-  SET = 0x18,
+  SET,
   SWAP, // necessary?
   LOAD_I, // Immediate address
   STORE_I,
   // Control flow
   JMP,
   BRCH,
-  END = 0x1E,
-  // Reserved for future(?) 2-byte opcodes
-  EXT = 0x1F,
+  LOAD_R,
+  STORE_R,
   // No more opcodes
 } OP;
 
@@ -381,6 +381,23 @@ void CPU_execute(CPU* cpu, uint8_t opcode, uint8_t field) {
         cpu->f &= ~FLAG_O;
       }
       break;
+    case STORE_R:
+      // Pick memory address from register pair
+      // store register value to memory at address
+      {
+        uint8_t src = CPU_fetch(cpu);
+        uint8_t pair = src * 2;
+        uint8_t lo = cpu->registers[pair];
+        uint8_t hi = cpu->registers[pair+1];
+        uint16_t addr = (hi << 8) | lo;
+        cpu->memory(WRITE, addr, cpu->registers[field]);
+
+        cpu->f &= ~FLAG_Z;
+        cpu->f &= ~FLAG_C;
+        cpu->f &= ~FLAG_N;
+        cpu->f &= ~FLAG_O;
+      }
+      break;
     case LOAD_I:
       // memory (operand) to register
       // addressing
@@ -389,6 +406,24 @@ void CPU_execute(CPU* cpu, uint8_t opcode, uint8_t field) {
         uint8_t hi = CPU_fetch(cpu);
         uint16_t addr = (hi << 8) | lo;
         cpu->registers[field] = cpu->memory(READ, addr, 0);
+        cpu->f &= ~FLAG_Z;
+        cpu->f &= ~FLAG_C;
+        cpu->f &= ~FLAG_N;
+        cpu->f &= ~FLAG_O;
+      }
+      break;
+    case LOAD_R:
+      // Pick memory address from register pair
+      // read the contents of address to register
+      {
+        uint8_t src = CPU_fetch(cpu);
+        uint8_t pair = src * 2;
+        uint8_t lo = cpu->registers[pair];
+        uint8_t hi = cpu->registers[pair+1];
+        uint16_t addr = (hi << 8) | lo;
+
+        cpu->registers[field] = cpu->memory(READ, addr, 0);
+
         cpu->f &= ~FLAG_Z;
         cpu->f &= ~FLAG_C;
         cpu->f &= ~FLAG_N;

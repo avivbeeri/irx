@@ -74,19 +74,18 @@ fffr0000
 0x14: MUL (All registers)
 0x15: CMP (All registers)
 
-0x16: LOAD_R (field only)
-0x17: STORE_R (field only)
+0x16: ??
+0x17: ?? (Reserve)
 
 0x18: SET (All registers, immediate)
 0x19: SWAP (All registers)
 0x1A: LOAD_I (All registers, immediate location)
 0x1B: STORE_I (All registers, immediate location)
 
-0x1C: JMP (immediate, pair-wise direct, call, pair-wise)
-0x1D: BRCH (4 flags, positive and negative)
-
-0x1E: ??
-0x1F: ?? // Reserved for future use
+0x1C: LOAD_R (field, extra byte for src)
+0x1D: STORE_R (field, extra byte for dest?)
+0x1E: JMP (immediate, pair-wise direct, call, pair-wise)
+0x1F: BRCH (4 flags, positive and negative)
 
 
 
