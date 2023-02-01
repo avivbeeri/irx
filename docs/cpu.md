@@ -13,13 +13,15 @@ This means that irx can only address a maximum of 64 kilobytes of memory.
 
 irx has a selection of 8-bit registers.
 
- * A, B, C, D, G, H - General purpose registers. These are paired for certain 16-bit operations. The A register is used for accumulator operations.
+ * A, B, C, D, G, H - General purpose registers. These are paired for certain 
+16-bit operations. The A register is used for accumulator operations.
  * E, External address register
  * SP - Stack Pointer, 8-bit.
  * F - Flags (Zero, Carry, Error)
  * IP - Instruction Pointer, 16-bit
 
-Flags are arranged like this:
+Flags in the F register are arranged like this:
+
   7|6|5|4|3|2|1|0
   ---------------
   U|U|B|I|O|N|Z|C
@@ -33,8 +35,9 @@ Flags are arranged like this:
 6) Unused
 7) Unused
 
-The stack grows downwards from the end of the memory space. It is used
-for subroutine execution.
+The irx instruction set supports a data stack of 256 bytes. Subroutine 
+calls use two-bytes and an interrupt consumes three. The stack grows 
+downwards from memory address 0xFFFF.
 
 ## Instruction Set
 
@@ -46,6 +49,11 @@ Mnemonic: NOP
 Opcode: 0x00
 
 Performs no action
+
+### 0x01 HALT
+
+Mnemonic: HALT
+Opcode: 0x01
 
 fffr0000
 
