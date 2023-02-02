@@ -37,6 +37,15 @@ int main(int argc, char *argv[]) {
     0x04, 0x00,
     // Little-endian execution interupt
     0x0C, 0x00,
+    OP(SYS, HALT)
+  };
+
+  /*
+  uint8_t program[] = {
+    // Little-endian execution start address.
+    0x04, 0x00,
+    // Little-endian execution interupt
+    0x0C, 0x00,
     OP(SET, 0), 0x07,
     OP(SET, 1), 0x00,
     OP(JMP, 4), 0x0C, 0x00,
@@ -44,8 +53,10 @@ int main(int argc, char *argv[]) {
     OP(SYS, 7), 0x01,
     OP(SYS, 5)
   };
+  */
 
   memcpy(ROM, &program, sizeof(program));
+  CPU_prime(&cpu);
   CPU_run(&cpu);
   CPU_dump(&cpu);
   return 0;

@@ -115,19 +115,20 @@ int main(int argc, char *argv[]) {
     OP(JMP, 0), 0x07, 0x00,
     // Interrupt
     // clear interupt count
-    OP(SYS, 4),
+    OP(SYS, CLEAR_INT),
     // Read from device bus
-    OP(SYS, 2),
+    OP(SYS, DATA_IN),
     // store character
     OP(COPY_OUT, 1),
     // write to terminal
-    OP(SYS, 3),
+    OP(SYS, DATA_OUT),
     // RETI
-    OP(SYS, 6),
-    OP(SYS, 0)
+    OP(SYS, RETI),
+    OP(SYS, NOOP)
   };
 
   memcpy(ROM, &program, sizeof(program));
+  CPU_prime(&cpu);
   TERM_run(&cpu);
   pthread_join(thread, NULL);
   disableRawMode();

@@ -49,6 +49,64 @@ typedef struct CPU_t {
 } CPU;
 
 typedef enum {
+  SYS = 0x00,
+
+  NOOP = 0x0,
+  HALT = 0x01,
+  DATA_IN = 0x2,
+  DATA_OUT = 0x3,
+  CLEAR_INT = 0x4,
+  RET = 0x5,
+  RETI = 0x6,
+  SWAP = 0x7,
+
+  CLF = 0x01,
+  SEF = 0x81,
+
+  PUSH = 0x02,
+  POP = 0x82,
+
+  COPY_IN = 0x03,
+  COPY_OUT = 0x83,
+
+  INC = 0x04,
+  DEC = 0x84,
+
+  RTL = 0x05,
+  RTR = 0x85,
+
+  SHL = 0x06,
+  SHR = 0x86,
+
+  LOAD_I = 0x07,
+  LOAD_R = 0x87,
+
+  STORE_I = 0x08,
+  STORE_R = 0x88,
+
+  JMP = 0x09,
+  U1 = 0x89,
+
+  CALL = 0x0A,
+  U2 = 0x8A,
+
+  BRCH = 0x0B,
+  SET = 0x8B,
+
+  NOT = 0x0C,
+  OR = 0x8C,
+
+  AND = 0x0D,
+  XOR = 0x8D,
+
+  ADD = 0x0E,
+  SUB = 0x8E,
+
+  MUL = 0x0F,
+  CMP = 0x8F,
+} OP;
+/*
+typedef enum {
   SYS = 0x00,// vacant
   U3 = 0x01,
   CLF, // clear flag
@@ -89,6 +147,7 @@ typedef enum {
   STORE_R,
   // No more opcodes
 } OP;
+*/
 
 // Based on 6502 format
 typedef enum {
@@ -103,7 +162,7 @@ typedef enum {
 } FLAG;
 
 #define OPZ(opcode) opcode
-#define OP(opcode, flag) (flag << 5) | opcode
+#define OP(opcode, flag) (opcode | (flag << 4))
 
 uint8_t CPU_fetch(CPU* cpu) {
   uint8_t data = cpu->memory(READ, cpu->ip++, 0);
@@ -229,7 +288,13 @@ void CPU_execute(CPU* cpu, uint8_t opcode, uint8_t field) {
               cpu->ip = addr;
             }
             break;
-          case 4:
+         }
+      }
+      break;
+    case CALL:
+      {
+        switch(field) {
+          case 0:
             {
               // CALL
               // absolute jump with PC push
@@ -242,9 +307,9 @@ void CPU_execute(CPU* cpu, uint8_t opcode, uint8_t field) {
               cpu->ip = addr;
             }
             break;
-          case 5:
-          case 6:
-          case 7:
+          case 1:
+          case 2:
+          case 3:
             {
               // register CALL with PC push
               uint8_t pair = (field - 5)*2;
@@ -260,15 +325,14 @@ void CPU_execute(CPU* cpu, uint8_t opcode, uint8_t field) {
         }
       }
       break;
-    case STK2:
-      field += 8;
-    case STK:
+    case PUSH:
       {
-        if (field < 8) {
-          PUSH_STACK(cpu->registers[field % 8]);
-        } else {
-          POP_STACK(cpu->registers[field % 8]);
-        }
+        PUSH_STACK(cpu->registers[field]);
+      }
+      break;
+    case POP:
+      {
+        POP_STACK(cpu->registers[field]);
       }
       break;
     case BRCH:
@@ -592,20 +656,19 @@ void CPU_execute(CPU* cpu, uint8_t opcode, uint8_t field) {
     case SYS:
       {
         switch (field) {
-          case 0: break; // NOOP
-          case 1: // HALT
+          case HALT:
             cpu->running = false;
             break;
-          case 2: // DATA_IN
+          case DATA_IN:
             CPU_readData(cpu);
             break;
-          case 3: // DATA_OUT
+          case DATA_OUT:
             CPU_writeData(cpu);
             break;
-          case 4: // clear interupt value
+          case CLEAR_INT:
             cpu->i = 0;
             break;
-          case 5: // RET
+          case RET:
             {
               uint8_t lo, hi;
               POP_STACK(lo);
@@ -613,8 +676,7 @@ void CPU_execute(CPU* cpu, uint8_t opcode, uint8_t field) {
               cpu->ip = (hi << 8) | lo;
             }
             break;
-          case 6:
-            // RETI
+          case RETI:
             {
               POP_STACK(cpu->f);
               uint8_t lo, hi;
@@ -623,7 +685,7 @@ void CPU_execute(CPU* cpu, uint8_t opcode, uint8_t field) {
               cpu->ip = (hi << 8) | lo;
             }
             break;
-          case 7: //SWAP
+          case SWAP:
             {
               uint8_t operand = CPU_fetch(cpu);
               uint8_t src = operand & 0xF;
@@ -638,6 +700,7 @@ void CPU_execute(CPU* cpu, uint8_t opcode, uint8_t field) {
               cpu->f &= ~FLAG_O;
             }
             break;
+          case NOOP: break;
         }
       }
       break;
@@ -666,6 +729,12 @@ void CPU_init(CPU* cpu) {
   cpu->memory = CPU_defaultMemAccess;
 }
 
+void CPU_prime(CPU* cpu) {
+  uint8_t lo = cpu->memory(READ, 0x00, 0);
+  uint8_t hi = cpu->memory(READ, 0x01, 0);
+  cpu->ip = (hi << 8) | lo;
+}
+
 bool CPU_step(CPU* cpu) {
   if (!cpu->running) {
     return false;
@@ -684,8 +753,9 @@ bool CPU_step(CPU* cpu) {
   uint8_t instruction = CPU_fetch(cpu);
 
   // decode
-  uint8_t opcode = instruction & 0x1F;
-  uint8_t field = instruction >> 5;
+  uint8_t opcode = instruction & 0x8F;
+  uint8_t field = (instruction & 0x70) >> 4;
+  // printf("%04X %02X %02X %02X\n\r", cpu->ip, instruction, opcode, field);
 
   CPU_execute(cpu, opcode, field);
   return cpu->running;
