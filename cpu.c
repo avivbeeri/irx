@@ -9,7 +9,6 @@
    */
 
 #define STACK_SIZE 256
-#define HALT SYS
 #define POP_STACK(dest) do { cpu->sp--; dest = cpu->memory(READ, 0xFFFF - cpu->sp, 0); } while(0)
 #define PUSH_STACK(src) do { cpu->memory(WRITE, 0xFFFF - cpu->sp, src); cpu->sp++; } while(0)
 #define SET_IP(low, high) do { cpu->ip = ((high) << 8) | low; } while(0)
@@ -50,8 +49,8 @@ typedef struct CPU_t {
 } CPU;
 
 typedef enum {
-  NOOP = 0x00,
-  SYS,// vacant
+  SYS = 0x00,// vacant
+  U3 = 0x01,
   CLF, // clear flag
   SEF, // set flag
   // Stack control
@@ -590,23 +589,23 @@ void CPU_execute(CPU* cpu, uint8_t opcode, uint8_t field) {
         cpu->f &= ~FLAG_Z;
       }
       break;
-    case NOOP: break;
     case SYS:
       {
         switch (field) {
-          case 0: //HALT
+          case 0: break; // NOOP
+          case 1: // HALT
             cpu->running = false;
             break;
-          case 1: // DATA_IN
+          case 2: // DATA_IN
             CPU_readData(cpu);
             break;
-          case 2: // DATA_OUT
+          case 3: // DATA_OUT
             CPU_writeData(cpu);
             break;
-          case 3: // clear interupt value
+          case 4: // clear interupt value
             cpu->i = 0;
             break;
-          case 4: // RET
+          case 5: // RET
             {
               uint8_t lo, hi;
               POP_STACK(lo);
@@ -614,7 +613,7 @@ void CPU_execute(CPU* cpu, uint8_t opcode, uint8_t field) {
               cpu->ip = (hi << 8) | lo;
             }
             break;
-          case 5:
+          case 6:
             // RETI
             {
               POP_STACK(cpu->f);
@@ -624,7 +623,7 @@ void CPU_execute(CPU* cpu, uint8_t opcode, uint8_t field) {
               cpu->ip = (hi << 8) | lo;
             }
             break;
-          case 6: //SWAP
+          case 7: //SWAP
             {
               uint8_t operand = CPU_fetch(cpu);
               uint8_t src = operand & 0xF;

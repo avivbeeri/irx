@@ -115,16 +115,16 @@ int main(int argc, char *argv[]) {
     OP(JMP, 0), 0x07, 0x00,
     // Interrupt
     // clear interupt count
-    OP(SYS, 3),
+    OP(SYS, 4),
     // Read from device bus
-    OP(SYS, 1),
+    OP(SYS, 2),
     // store character
     OP(COPY_OUT, 1),
     // write to terminal
-    OP(SYS, 2),
+    OP(SYS, 3),
     // RETI
-    OP(SYS, 5),
-    OPZ(NOOP)
+    OP(SYS, 6),
+    OP(SYS, 0)
   };
 
   memcpy(ROM, &program, sizeof(program));

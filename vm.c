@@ -40,9 +40,9 @@ int main(int argc, char *argv[]) {
     OP(SET, 0), 0x07,
     OP(SET, 1), 0x00,
     OP(JMP, 4), 0x0C, 0x00,
-    OPZ(HALT),
-    OP(SYS, 6), 0x01,
-    OP(SYS, 4)
+    OP(SYS, 1),
+    OP(SYS, 7), 0x01,
+    OP(SYS, 5)
   };
 
   memcpy(ROM, &program, sizeof(program));
