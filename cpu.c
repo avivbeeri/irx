@@ -80,7 +80,7 @@ typedef enum {
   // MEMORY and Register ops
   // These instructions need at least one extra byte from memory
   SET,
-  SWAP, // necessary?
+  U2,
   LOAD_I, // Immediate address
   STORE_I,
   // Control flow
@@ -430,19 +430,6 @@ void CPU_execute(CPU* cpu, uint8_t opcode, uint8_t field) {
         cpu->f &= ~FLAG_O;
       }
       break;
-    case SWAP:
-      {
-        uint8_t src = CPU_fetch(cpu);
-        uint8_t swap = cpu->registers[field];
-        cpu->registers[field] = cpu->registers[src];
-        cpu->registers[src] = swap;
-
-        cpu->f &= ~FLAG_Z;
-        cpu->f &= ~FLAG_C;
-        cpu->f &= ~FLAG_N;
-        cpu->f &= ~FLAG_O;
-      }
-      break;
     case SET:
       {
         uint8_t value = CPU_fetch(cpu);
@@ -635,6 +622,21 @@ void CPU_execute(CPU* cpu, uint8_t opcode, uint8_t field) {
               POP_STACK(lo);
               POP_STACK(hi);
               cpu->ip = (hi << 8) | lo;
+            }
+            break;
+          case 6: //SWAP
+            {
+              uint8_t operand = CPU_fetch(cpu);
+              uint8_t src = operand & 0xF;
+              uint8_t dest = (operand & 0xF0) >> 4;
+              uint8_t swap = cpu->registers[dest];
+              cpu->registers[dest] = cpu->registers[src];
+              cpu->registers[src] = swap;
+
+              cpu->f &= ~FLAG_Z;
+              cpu->f &= ~FLAG_C;
+              cpu->f &= ~FLAG_N;
+              cpu->f &= ~FLAG_O;
             }
             break;
         }

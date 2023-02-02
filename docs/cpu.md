@@ -58,7 +58,7 @@ Opcode: 0x01
 fffr0000
 
 0x00: NOP
-0x01: SYS (HALT, DATA_IN, DATA_OUT, CLEAR_INT, RET, RETI)
+0x01: SYS (HALT, DATA_IN, DATA_OUT, CLEAR_INT, RET, RETI, SWAP)
 0x02: CLF (all flags)
 0x03: SEF (all flags)
 
@@ -86,7 +86,7 @@ fffr0000
 0x17: ?? (Reserve)
 
 0x18: SET (All registers, immediate)
-0x19: SWAP (All registers)
+0x19: ??
 0x1A: LOAD_I (All registers, immediate location)
 0x1B: STORE_I (All registers, immediate location)
 
