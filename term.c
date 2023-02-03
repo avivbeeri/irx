@@ -112,7 +112,7 @@ int main(int argc, char *argv[]) {
     // Main loop
     OP(SEF, 4),
     OP(SET, 7), 0x00,
-    OP(JMP, 0), 0x07, 0x00,
+    OP(JMP, 3), 0x07, 0x00,
     // Interrupt
     // clear interupt count
     OP(SYS, CLEAR_INT),

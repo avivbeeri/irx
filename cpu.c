@@ -50,15 +50,17 @@ typedef struct CPU_t {
 
 typedef enum {
   SYS = 0x00,
+  JMP = 0x80,
 
-  NOOP = 0x0,
+  NOOP = 0x00,
   HALT = 0x01,
-  DATA_IN = 0x2,
-  DATA_OUT = 0x3,
-  CLEAR_INT = 0x4,
-  RET = 0x5,
-  RETI = 0x6,
-  SWAP = 0x7,
+  DATA_IN = 0x02,
+  DATA_OUT = 0x03,
+  CLEAR_INT = 0x04,
+  RET = 0x05,
+  RETI = 0x06,
+  SWAP = 0x07,
+
 
   CLF = 0x01,
   SEF = 0x81,
@@ -84,11 +86,10 @@ typedef enum {
   STORE_I = 0x08,
   STORE_R = 0x88,
 
-  JMP = 0x09,
   U1 = 0x89,
 
-  CALL = 0x0A,
-  U2 = 0x8A,
+  U2 = 0x0A,
+  U3 = 0x8A,
 
   BRCH = 0x0B,
   SET = 0x8B,
@@ -222,6 +223,23 @@ void CPU_execute(CPU* cpu, uint8_t opcode, uint8_t field) {
       break;
     case JMP:
       {
+        if (field & 0x4) {
+          PUSH_STACK((cpu->ip >> 8));
+          PUSH_STACK((uint8_t)(cpu->ip & 0x00FF));
+        }
+        uint8_t lo, hi;
+        if ((field & 0x3) == 0x3) {
+          lo = CPU_fetch(cpu);
+          hi = CPU_fetch(cpu);
+        } else {
+          int pair = (field & 0x3) * 2;
+          lo = cpu->registers[pair];
+          hi = cpu->registers[pair+1];
+        }
+        uint16_t addr = (hi << 8) | lo;
+        cpu->ip = addr;
+      }
+/*
         // Immediate
         // direct
         switch(field) {
@@ -245,13 +263,7 @@ void CPU_execute(CPU* cpu, uint8_t opcode, uint8_t field) {
               cpu->ip = addr;
             }
             break;
-         }
-      }
-      break;
-    case CALL:
-      {
-        switch(field) {
-          case 0:
+          case 4:
             {
               // CALL
               // absolute jump with PC push
@@ -264,9 +276,9 @@ void CPU_execute(CPU* cpu, uint8_t opcode, uint8_t field) {
               cpu->ip = addr;
             }
             break;
-          case 1:
-          case 2:
-          case 3:
+          case 5:
+          case 6:
+          case 7:
             {
               // register CALL with PC push
               uint8_t pair = (field - 5)*2;
@@ -280,7 +292,7 @@ void CPU_execute(CPU* cpu, uint8_t opcode, uint8_t field) {
             }
             break;
         }
-      }
+      */
       break;
     case PUSH:
       {
