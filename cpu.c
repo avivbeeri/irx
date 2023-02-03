@@ -94,60 +94,17 @@ typedef enum {
   SET = 0x8B,
 
   NOT = 0x0C,
-  OR = 0x8C,
+  XOR = 0x8C,
 
   AND = 0x0D,
-  XOR = 0x8D,
+  OR = 0x8D,
 
   ADD = 0x0E,
-  SUB = 0x8E,
+  MUL = 0x8E,
 
-  MUL = 0x0F,
+  SUB = 0x0F,
   CMP = 0x8F,
 } OP;
-/*
-typedef enum {
-  SYS = 0x00,// vacant
-  U3 = 0x01,
-  CLF, // clear flag
-  SEF, // set flag
-  // Stack control
-  STK,
-  STK2, // TODO: ???
-  COPY_IN, // to A
-  COPY_OUT, // from A
-  // ALU
-  INC,
-  DEC,
-  RTL, // rotate left
-  RTR, // rotate right
-  SHL,
-  SHR,
-  NOT,
-  AND,
-  OR,
-  XOR,
-  ADD,
-  SUB,
-  MUL,
-  CMP,
-  U1,
-  // Reserved for future(?) 2-byte opcodes
-  EXT,
-  // MEMORY and Register ops
-  // These instructions need at least one extra byte from memory
-  SET,
-  U2,
-  LOAD_I, // Immediate address
-  STORE_I,
-  // Control flow
-  JMP,
-  BRCH,
-  LOAD_R,
-  STORE_R,
-  // No more opcodes
-} OP;
-*/
 
 // Based on 6502 format
 typedef enum {
