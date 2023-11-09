@@ -239,60 +239,6 @@ void CPU_execute(CPU* cpu, uint8_t opcode, uint8_t field) {
         uint16_t addr = (hi << 8) | lo;
         cpu->ip = addr;
       }
-/*
-        // Immediate
-        // direct
-        switch(field) {
-          case 0:
-            {
-              uint8_t lo = CPU_fetch(cpu);
-              uint8_t hi = CPU_fetch(cpu);
-              uint16_t addr = (hi << 8) | lo;
-              cpu->ip = addr;
-            }
-            break;
-            // pair 16-bit mode
-          case 1:
-          case 2:
-          case 3:
-            {
-              uint8_t pair = (field - 1)*2;
-              uint8_t lo = cpu->registers[pair];
-              uint8_t hi = cpu->registers[pair+1];
-              uint16_t addr = (hi << 8) | lo;
-              cpu->ip = addr;
-            }
-            break;
-          case 4:
-            {
-              // CALL
-              // absolute jump with PC push
-              uint8_t lo = CPU_fetch(cpu);
-              uint8_t hi = CPU_fetch(cpu);
-              uint16_t addr = (hi << 8) | lo;
-
-              PUSH_STACK((cpu->ip >> 8));
-              PUSH_STACK((uint8_t)(cpu->ip & 0x00FF));
-              cpu->ip = addr;
-            }
-            break;
-          case 5:
-          case 6:
-          case 7:
-            {
-              // register CALL with PC push
-              uint8_t pair = (field - 5)*2;
-              uint8_t lo = cpu->registers[pair];
-              uint8_t hi = cpu->registers[pair+1];
-              uint16_t addr = (hi << 8) | lo;
-
-              PUSH_STACK((cpu->ip >> 8));
-              PUSH_STACK((uint8_t)(cpu->ip & 0x00FF));
-              cpu->ip = addr;
-            }
-            break;
-        }
-      */
       break;
     case PUSH:
       {
@@ -309,6 +255,13 @@ void CPU_execute(CPU* cpu, uint8_t opcode, uint8_t field) {
         uint8_t lo = CPU_fetch(cpu);
         uint8_t hi = CPU_fetch(cpu);
         uint16_t addr = (hi << 8) | lo;
+        uint8_t flag = (field / 2);
+        uint8_t mode = (field % 2);
+        if ((cpu->f & (1 << flag)) != (mode << flag)) {
+          cpu->ip = addr;
+        }
+
+        /*
         switch(field) {
           case 0: // check Z flag set
             {
@@ -367,6 +320,7 @@ void CPU_execute(CPU* cpu, uint8_t opcode, uint8_t field) {
             }
             break;
         }
+        */
       }
       break;
     case CMP:
@@ -724,7 +678,6 @@ bool CPU_step(CPU* cpu) {
   // decode
   uint8_t opcode = instruction & 0x8F;
   uint8_t field = (instruction & 0x70) >> 4;
-  // printf("%04X %02X %02X %02X\n\r", cpu->ip, instruction, opcode, field);
 
   CPU_execute(cpu, opcode, field);
   return cpu->running;

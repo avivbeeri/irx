@@ -37,12 +37,12 @@ int main(int argc, char *argv[]) {
     0x04, 0x00,
     // Little-endian execution interupt
     0x0C, 0x00,
-    OP(SET, 0), 0x07,
-    OP(SET, 1), 0x00,
-    OP(JMP, 7), 0x0C, 0x00,
-    OP(SYS, 1),
-    OP(SYS, 7), 0x01,
-    OP(SYS, 5)
+    OP(SET, 0), 0xFE,
+    OP(SET, 1), 0x02,
+    OP(SUB, 1),
+    OP(BRCH, 4), 0x0E, 0x00,
+    OP(SET, 1), 0x01,
+    OP(SYS, HALT)
   };
 
   memcpy(ROM, &program, sizeof(program));
